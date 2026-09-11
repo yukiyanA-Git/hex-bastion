@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HEX BASTION - 将棋式リアルタイム反転防衛戦</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+  <!-- PeerJS for Free Serverless WebRTC PVP -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Three.js for 3D Cyber-Chess Board & Pieces -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="game-container">
+    <!-- Top HUD Header (Enemy Core & Info) -->
+    <header id="top-hud">
+      <div class="core-status enemy-core">
+        <div class="core-icon enemy-icon">🔶</div>
+        <div class="core-info">
+          <div class="core-label" id="enemy-core-title">ENEMY CORE</div>
+          <div class="hp-bar-outer"><div id="enemy-hp-bar" class="hp-bar-inner"></div></div>
+          <div class="core-sub-row">
+            <span class="core-hp-text"><span id="enemy-hp">20</span> / 20</span>
+            <span class="unit-count-badge">駒: <span id="enemy-unit-count">3/4</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Enemy Hand Cards Preview (Hidden in PvP unless Spied, Open in CPU mode) -->
+      <div id="enemy-hand-panel">
+        <span class="enemy-hand-label">ENEMY CARDS</span>
+        <div id="enemy-cards-container" class="enemy-cards-row">
+          <!-- Dynamic enemy cards -->
+        </div>
+      </div>
+
+      <div class="match-info">
+        <div class="timer-title">TIME</div>
+        <div id="game-timer">05:00</div>
+        <div class="mode-badges">
+          <span id="badge-mode" class="badge-tag">BLITZ</span>
+          <span id="badge-pvp" class="badge-tag">VS CPU</span>
+        </div>
+      </div>
+
+      <div class="top-controls">
+        <div class="player-rate-box">
+          <span class="rate-label">RATE</span>
+          <span id="player-rate-val">100</span>
+        </div>
+        <button id="camera-reset-btn" class="hud-pill-btn" title="斜め3Dと真上俯瞰（2.5D）を切り替え">🎥 視点切替</button>
+        <button id="card-archive-btn" class="hud-pill-btn" title="全10種の戦術カード図鑑">🃏 カード図鑑</button>
+        <button id="pvp-connect-btn" class="hud-pill-btn" title="オンライン対戦メニュー">🌐 PVP対戦</button>
+        <button id="help-btn" class="hud-btn" title="説明書・ルール">📖</button>
+        <button id="sound-btn" class="hud-pill-btn" title="サウンド切り替え">🔊 音声: ON</button>
+        <button id="restart-btn" class="hud-btn" title="リスタート">🔄</button>
+      </div>
+    </header>
+
+    <!-- Main Vertical Arena -->
+    <main id="arena-wrapper">
+      <canvas id="three-canvas"></canvas>
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Overlay Messages & Banners -->
+      <div id="combat-banner" class="hidden">REVERSAL!</div>
+      <div id="card-alert-banner" class="hidden">相手が【ステルス】を発動！</div>
+    </main>
+
+    <!-- Bottom HUD (Player Hand, Mana, Units, Unit Inspector) -->
+    <footer id="bottom-hud">
+      <!-- Selected Unit Inspector Bar (Integrated at top of bottom HUD, zero overlap with canvas) -->
+      <div id="unit-inspector-bar" class="unit-inspector-bar">
+        <div class="inspector-badge-icon" id="inspect-icon">⚔️</div>
+        <div class="inspector-content">
+          <div class="inspector-title-row">
+            <span class="inspector-name" id="inspect-name">駒を選択してください</span>
+            <span class="inspector-role-tag" id="inspect-role">待機中</span>
+            <span class="inspector-side-tag player" id="inspect-side">自軍</span>
+          </div>
+          <div class="inspector-desc" id="inspect-desc">自軍の駒をクリックすると移動・向き変更が可能です（左クリック: ↻順回転 / 右クリック: ↺逆回転）</div>
+        </div>
+        <div class="inspector-stats-row" id="inspect-stats-row">
+          <span class="inspector-stat-pill" id="inspect-stat-hp">HP: -</span>
+          <span class="inspector-stat-pill" id="inspect-stat-range">射程: -</span>
+          <span class="inspector-stat-pill" id="inspect-stat-dir">向き: -</span>
+          <span class="inspector-stat-pill" id="inspect-stat-recast">⚔️ CD: READY</span>
+        </div>
+        <div class="inspector-controls-hint">
+          <span>左: ↻ 順回転</span>
+          <span>右: ↺ 逆回転</span>
+        </div>
+      </div>
+
+      <!-- Bottom HUD Panels Row -->
+      <div class="bottom-hud-panels">
+        <!-- Player Core Status -->
+        <div class="core-status player-core">
+          <div class="core-icon">🔷</div>
+          <div class="core-info">
+            <div class="core-label" id="player-core-title">PLAYER CORE (YOU)</div>
+            <div class="hp-bar-outer"><div id="player-hp-bar" class="hp-bar-inner"></div></div>
+            <div class="core-sub-row">
+              <span class="core-hp-text"><span id="player-hp">20</span> / 20</span>
+              <span class="unit-count-badge">駒: <span id="player-unit-count">3/4</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tactical Buff Cards -->
+        <div id="tactical-panel">
+          <div class="panel-header">
+            <span class="panel-title">TACTICAL CARDS</span>
+            <span class="panel-subtitle">自分専用支援（使い切り）</span>
+          </div>
+          <div id="buff-cards-container" class="cards-row">
+            <!-- Dynamic Buff Cards -->
+          </div>
+        </div>
+
+        <!-- Energy / Action Center -->
+        <div id="energy-panel">
+          <div class="energy-header">
+            <span class="energy-title">ENERGY</span>
+            <span id="energy-val">10 / 10</span>
+          </div>
+          <div class="energy-meter-container">
+            <div id="energy-meter"></div>
+          </div>
+          <div class="selection-status" id="active-action-text">駒をクリックして移動・回転</div>
+        </div>
+
+        <!-- Deployment Deck -->
+        <div id="unit-deck-panel">
+          <div class="panel-header">
+            <span class="panel-title">DEPLOYMENT</span>
+            <span class="panel-subtitle">増援（個別リキャスト）</span>
+          </div>
+          <div id="unit-deck-container" class="cards-row">
+            <!-- Dynamic Unit Cards -->
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Tooltip -->
+  <div id="custom-tooltip" class="hidden"></div>
+
+  <!-- Countdown Overlay -->
+  <div id="countdown-overlay" class="modal-overlay hidden">
+    <div id="countdown-text">3</div>
+  </div>
+
+  <!-- Step 1 & 2: Match Setup Modal (First screen shown on start) -->
+  <div id="start-modal" class="modal-overlay">
+    <div class="modal-card setup-card">
+      <div class="setup-badge">START SETUP</div>
+      <h2>対戦モード選択</h2>
+      <p class="setup-sub">プレイ形式を選択してください。</p>
+
+      <!-- Main Mode Switch (CPU or PVP) -->
+      <div class="setup-mode-selector">
+        <div id="mode-opt-cpu" class="mode-choice-card selected">
+          <div class="choice-icon">🤖</div>
+          <div class="choice-title">VS CPU</div>
+          <div class="choice-desc">コンピュータ対戦</div>
+        </div>
+        <div id="mode-opt-pvp" class="mode-choice-card">
+          <div class="choice-icon">🌐</div>
+          <div class="choice-title">ONLINE PVP</div>
+          <div class="choice-desc">Webオンライン対戦 (P2P)</div>
+        </div>
+      </div>
+
+      <!-- CPU Settings Subpanel -->
+      <div id="setup-cpu-panel" class="setup-subpanel">
+        <div class="setup-label">▼ 戦闘規模を選択</div>
+        <div class="scale-buttons-row">
+          <button id="cpu-scale-5" class="scale-btn active">
+            <span class="scale-title">⚡ 5対5 (BLITZ)</span>
+            <span class="scale-desc">標準リキャ / 5分戦</span>
+          </button>
+          <button id="cpu-scale-8" class="scale-btn">
+            <span class="scale-title">🧠 8対8 (TACTICAL)</span>
+            <span class="scale-desc">2倍リキャ / 時間無制限</span>
+          </button>
+        </div>
+        <div class="setup-label" style="margin-top: 14px;">▼ CPU思考難易度（リキャスト間隔）</div>
+        <div class="cpu-diff-buttons-row">
+          <button id="cpu-diff-easy" class="diff-btn" data-diff="EASY">
+            <span class="diff-title">🟢 EASY（初級）</span>
+            <span class="diff-desc">思考ゆったり (3.0秒)</span>
+          </button>
+          <button id="cpu-diff-normal" class="diff-btn active" data-diff="NORMAL">
+            <span class="diff-title">🟡 NORMAL（中級）</span>
+            <span class="diff-desc">標準ペース (1.6秒)</span>
+          </button>
+          <button id="cpu-diff-hard" class="diff-btn" data-diff="HARD">
+            <span class="diff-title">🔴 HARD（上級）</span>
+            <span class="diff-desc">高速・挟み重視 (0.9秒)</span>
+          </button>
+        </div>
+
+        <button id="cpu-start-btn" class="primary-btn setup-engage-btn">作戦立案・ドラフトへ進む ➔</button>
+      </div>
+
+      <!-- PVP Settings Subpanel -->
+      <div id="setup-pvp-panel" class="setup-subpanel hidden">
+        <div class="pvp-tab-bar">
+          <button id="pvp-tab-host" class="pvp-tab-btn active">① 部屋をつくる (ホスト)</button>
+          <button id="pvp-tab-guest" class="pvp-tab-btn">② 合言葉で入る (ゲスト)</button>
+          <button id="pvp-tab-random" class="pvp-tab-btn">③ ⚡ ランダム対戦 (フリー)</button>
+        </div>
+
+        <!-- PVP Host View -->
+        <div id="pvp-host-view">
+          <div class="setup-label">▼ ドラフト制限時間（設けるかどうか）</div>
+          <div class="pvp-timer-row">
+            <button id="pvp-timer-0" class="scale-btn" data-time="0">
+              <span class="scale-title">設けない</span>
+              <span class="scale-desc">時間無制限</span>
+            </button>
+            <button id="pvp-timer-20" class="scale-btn active" data-time="20">
+              <span class="scale-title">⏱️ 20秒</span>
+              <span class="scale-desc">標準ドラフト</span>
+            </button>
+            <button id="pvp-timer-40" class="scale-btn" data-time="40">
+              <span class="scale-title">⏱️ 40秒</span>
+              <span class="scale-desc">ゆったり</span>
+            </button>
+            <button id="pvp-timer-60" class="scale-btn" data-time="60">
+              <span class="scale-title">⏱️ 60秒</span>
+              <span class="scale-desc">じっくり長考</span>
+            </button>
+          </div>
+
+          <div class="host-action-area">
+            <button id="pvp-create-btn" class="primary-btn">部屋を作成し合言葉を発行</button>
+            <div id="host-room-info" class="code-box hidden">
+              <span class="code-label">招待合言葉:</span>
+              <input type="text" id="host-code-val" readonly>
+              <button id="copy-host-code-btn" class="copy-btn">コピー</button>
+              <div class="waiting-indicator">
+                <span class="pulse-dot"></span> 相手の接続を待機中... (接続されると相手の画面も自動で始まります)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PVP Guest View -->
+        <div id="pvp-guest-view" class="hidden">
+          <p class="guest-instruction">相手（ホスト）から共有された合言葉を入力してください。<br>ホストが選んだドラフト設定で自動的に同期して開始します。</p>
+          <div class="join-row">
+            <input type="text" id="guest-code-val" placeholder="合言葉を入力 (例: hb-3829)">
+            <button id="guest-join-btn" class="primary-btn">参加する</button>
+          </div>
+        </div>
+
+        <!-- PVP Random Matchmaking View -->
+        <div id="pvp-random-view" class="hidden">
+          <p class="guest-instruction">合言葉不要！同じルールで待機中の相手と自動で即座に対戦します。<br>※ドラフト時間は60秒固定（両者準備完了で即座に開始）</p>
+          <div class="setup-label">▼ 対戦規模を選択</div>
+          <div class="scale-buttons-row">
+            <button id="random-scale-5" class="scale-btn active" data-scale="BLITZ">
+              <span class="scale-title">⚡ 5対5 (BLITZ)</span>
+              <span class="scale-desc">標準規模 / 5分戦</span>
+            </button>
+            <button id="random-scale-8" class="scale-btn" data-scale="TACTICAL">
+              <span class="scale-title">🧠 8対8 (TACTICAL)</span>
+              <span class="scale-desc">2倍広域 / 時間無制限</span>
+            </button>
+          </div>
+
+          <div class="random-match-action-area">
+            <button id="random-match-btn" class="primary-btn setup-engage-btn">⚡ 対戦相手を検索（マッチング開始）</button>
+            
+            <div id="random-match-searching" class="random-searching-box hidden">
+              <div class="radar-spinner"></div>
+              <div class="searching-text-box">
+                <span class="searching-title" id="searching-status-text">対戦相手を検索中...</span>
+                <span class="searching-sub" id="searching-sub-text">同一ルールの待機プレイヤーを探しています</span>
+              </div>
+              <button id="random-cancel-btn" class="hud-pill-btn cancel-btn">検索キャンセル</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick How-To-Play & Manual Section on Start Page -->
+      <div class="start-manual-section">
+        <div class="start-manual-header">
+          <span class="start-manual-title">📖 初めての方へ：遊び方 ＆ 戦術ルール</span>
+          <div class="start-manual-links">
+            <button id="start-mute-btn" class="start-mute-btn" title="ミュート切り替え">🔊 音声: ON</button>
+            <button id="start-open-help-btn" class="manual-pill-btn">詳細説明書を開く ➔</button>
+            <button id="start-open-cards-btn" class="manual-pill-btn">全10種カード図鑑 ➔</button>
+          </div>
+        </div>
+        <div class="quick-rules-grid">
+          <div class="quick-rule-card">
+            <span class="qrule-icon">🎯</span>
+            <div class="qrule-title">勝利条件</div>
+            <div class="qrule-desc">奥の敵コア（HP:20）を削り切ると勝利！</div>
+          </div>
+          <div class="quick-rule-card">
+            <span class="qrule-icon">🔄</span>
+            <div class="qrule-title">オセロ反転</div>
+            <div class="qrule-desc">直線上「味方-敵-味方」で挟むと敵駒が自軍色へ寝返る！</div>
+          </div>
+          <div class="quick-rule-card">
+            <span class="qrule-icon">👣</span>
+            <div class="qrule-title">移動＆到着判定</div>
+            <div class="qrule-desc">駒を移動させると、到着した瞬間に挟み反転＆即時射撃！</div>
+          </div>
+          <div class="quick-rule-card">
+            <span class="qrule-icon">⛰️</span>
+            <div class="qrule-title">高台の要塞性</div>
+            <div class="qrule-desc">射程+1、障害物無視、低地からのオセロ反転を無効化！</div>
+          </div>
+          <div class="quick-rule-card">
+            <span class="qrule-icon">🔄</span>
+            <div class="qrule-title">左右クリック回転</div>
+            <div class="qrule-desc">左クリックで順回転（時計回り）、右クリックで逆回転（反時計回り）！</div>
+          </div>
+          <div class="quick-rule-card">
+            <span class="qrule-icon">🃏</span>
+            <div class="qrule-title">全10種戦術カード</div>
+            <div class="qrule-desc">無敵・ステルス・跳躍2倍・高台建造などで一発逆転！</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mission Briefing Modal (Draft Phase - Triggered after Mode Selected) -->
+  <div id="briefing-modal" class="modal-overlay hidden">
+    <div class="modal-card briefing-card">
+      <div class="briefing-header">
+        <div class="briefing-top-line">
+          <span class="briefing-tag" id="briefing-rule-badge">BLITZ (5体対戦)</span>
+          <span id="draft-timer-badge" class="draft-timer">⏱️ 時間無制限</span>
+        </div>
+        <h2>作戦立案 ＆ 初期部隊ドラフト</h2>
+        <p id="briefing-sub-text">配給カードを確認し、初期配備する追加ユニットを選んでください（未選択時は自動ランダム配置）。</p>
+      </div>
+
+      <!-- 1. Hand Buff Cards -->
+      <div class="briefing-subhead-row">
+        <div class="briefing-subhead">▼ 配給された戦術カード（3枚）</div>
+        <button id="briefing-open-cards-btn" class="manual-mini-btn">全10種カード図鑑を見る ➔</button>
+      </div>
+      <div id="briefing-cards-container" class="briefing-cards-grid">
+        <!-- Dynamic Big Cards -->
+      </div>
+
+      <!-- 2. Unit Draft Selector -->
+      <div class="briefing-subhead">▼ 初期出撃ユニットの選出（残り <span id="draft-need-count">3</span> 体を選択）</div>
+      <div id="draft-units-container" class="draft-units-grid">
+        <!-- Dynamic Selectable Units -->
+      </div>
+
+      <div class="briefing-footer">
+        <button id="start-battle-btn" class="primary-btn engage-btn">作戦決定・出撃準備完了 (ENGAGE)</button>
+        <div id="briefing-ready-status" class="briefing-ready-status hidden">
+          <span class="pulse-dot"></span> 相手の準備完了を待機中... (両者完了で即座に開始)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- All 10 Cards Archive Modal (カード図鑑) -->
+  <div id="card-archive-modal" class="modal-overlay hidden">
+    <div class="modal-card card-archive-card">
+      <div class="modal-header">
+        <h2>🃏 全10種 戦術カード図鑑 (CARD ARCHIVE)</h2>
+        <button id="close-card-archive-btn" class="modal-close">&times;</button>
+      </div>
+      <p class="archive-sub">対戦開始時にランダムで3枚配給される戦術カード全10種類の効果と戦術一覧です。</p>
+      <div id="all-cards-archive-grid" class="cards-archive-grid">
+        <!-- Dynamic All 10 Cards -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal (Full Manual) -->
+  <div id="help-modal" class="modal-overlay hidden">
+    <div class="modal-card help-manual-card">
+      <div class="modal-header">
+        <h2>📖 HEX BASTION 完全操作・戦術マニュアル</h2>
+        <button id="close-help-btn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h3>🎯 ゲームの目的 ＆ 将棋式レイアウト</h3>
+          <p>手前があなたの本拠地コア（HP:20）、奥が敵コアです。奥の敵陣へ向かって部隊を進軍させ、相手コアの破壊を目指します。敵の攻撃や進軍は自軍ユニットで防ぎ、挟み撃ちで敵ユニットを寝返らせましょう。</p>
+        </div>
+        <div class="help-section">
+          <h3>🔄 オセロ反転（リバーサル・ハッキング）</h3>
+          <p>ヘックスの直線上で<strong>「味方 ―― 敵 ―― 味方」</strong>と挟み撃ちを作ると、敵タワーが一瞬で自軍色に反転！寝返って相手を攻撃します。移動直後にも反転判定が発生するため、敵の背後へステップして奇襲反転を狙えます。</p>
+        </div>
+        <div class="help-section">
+          <h3>👣 駒の移動 ＆ 到着時即時判定</h3>
+          <p>味方駒をクリック ➔ 緑のマス（👣）をクリックでスライド移動。<strong>到着した瞬間に「反転判定」と「正面即時射撃」が発動</strong>します！その場で<strong>左クリックすると順回転（時計回り）</strong>、<strong>右クリックすると逆回転（反時計回り）</strong>に向きを変えられます。</p>
+        </div>
+        <div class="help-section">
+          <h3>⛰️ 高台（CLIFF）の優位性</h3>
+          <p>高台（通常マスの約4倍の高さ）に陣取ったユニットは、<strong>「射程＋1」「障害物無視」「低地からの反転無効」</strong>という超強力な絶対要塞になります。相手より先に高台を確保するのが勝敗の鍵です。</p>
+        </div>
+        <div class="help-section">
+          <h3>🛡️ 駒の個性（全6種類）</h3>
+          <ul class="unit-manual-list">
+            <li><strong>🏹 アロータワー</strong>: 早撃ち・全方向1マス移動・射程3。前線の制圧と機動力の基本型。</li>
+            <li><strong>💥 スプレッド</strong>: 扇状近接・全方向1マス移動・正面3方向射程1。チョークポイントの封鎖に最適。</li>
+            <li><strong>🎯 レールガン</strong>: 長距離狙撃・射程5。移動後リキャストが長いが、高台に据えると凶悪な長距離砲台に。</li>
+            <li><strong>🛡️ アイアンクラッド</strong>: 重戦車・前方3方向のみ移動・高耐久。挟まれてもシールドで1度反転を防ぐ。</li>
+            <li><strong>🌀 ディスラプター</strong>: 妨害機・全方向1マス移動・射程3。射線上の敵の向きをランダムに狂わせ陣形を崩す。</li>
+            <li><strong>🪞 リフレクター</strong>: 反射板・全方向1マス移動。味方レーザーを60度屈折させ、ありえない角度から挟み撃ちを作る。</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>🎥 3D視点切り替え</h3>
+          <p>複雑なマウスドラッグ操作を排し、上部HUDの <strong>[🎥 視点切替]</strong> ボタンをクリックするだけで、立体的な<strong>「斜め3D視点」</strong>と盤面が正確に見渡せる<strong>「真上俯瞰（2.5D）視点」</strong>をいつでもワンタッチで切り替えられます。マウスホイールで距離の拡大縮小も可能です。</p>
+        </div>
+        <div class="help-section">
+          <h3>🏆 レートシステム（個人数値）</h3>
+          <p>初期値は100。勝てば<strong>相手レートの25%を獲得</strong>、負ければ<strong>自分のレートの10%を失います</strong>（自動保存）。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameover-modal" class="modal-overlay hidden">
+    <div class="modal-card gameover-card">
+      <h1 id="gameover-title">VICTORY</h1>
+      <p id="gameover-desc">敵コアの破壊に成功しました！</p>
+      <div class="rate-result-box">
+        <div class="rate-change-label">RATE CHANGE</div>
+        <div class="rate-change-val" id="rate-change-display">100 ➔ 125 (+25)</div>
+      </div>
+      <div class="stats-box">
+        <div class="stat-item">反転させた敵タワー: <span id="stat-reversals">0</span></div>
+        <div class="stat-item">コア与ダメージ: <span id="stat-damage">0</span></div>
+      </div>
+      <button id="play-again-btn" class="primary-btn">もう一度プレイ</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
