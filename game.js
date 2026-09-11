@@ -1122,44 +1122,59 @@ class HexBastionGame {
   }
 
   // ================= Serverless Random Matchmaking (Free Match) =================
-  startRandomMatchmaking() {
-    if (this.isRandomMatching) return;
-    this.isRandomMatching = true;
-    this.gameMode = this.randomMatchMode;
-    this.draftTimeLimit = 60; // Draft time fixed at 60s for random matches
+  startRandomMatchmaking(slotIndex = 1) {
+    if (!this.isRandomMatching && slotIndex === 1) {
+      this.isRandomMatching = true;
+      this.gameMode = this.randomMatchMode;
+      this.draftTimeLimit = 60; // Draft time fixed at 60s for random matches
+      if (this.randomMatchBtn) this.randomMatchBtn.classList.add('hidden');
+      if (this.randomMatchSearching) this.randomMatchSearching.classList.remove('hidden');
+    }
 
-    if (this.randomMatchBtn) this.randomMatchBtn.classList.add('hidden');
-    if (this.randomMatchSearching) this.randomMatchSearching.classList.remove('hidden');
-    if (this.searchingStatusText) this.searchingStatusText.textContent = '対戦相手を検索中...';
+    if (!this.isRandomMatching) return;
+
+    const mode = this.randomMatchMode.toLowerCase();
+    const maxSlots = 5;
+    const currentSlot = ((slotIndex - 1) % maxSlots) + 1;
+    const targetSlotId = `hb-free-${mode}-${currentSlot}`;
+
+    if (this.searchingStatusText) {
+      this.searchingStatusText.textContent = `対戦相手を検索中... (Slot ${currentSlot})`;
+    }
     if (this.searchingSubText) {
       this.searchingSubText.textContent = `${this.randomMatchMode === 'TACTICAL' ? '8vs8 (TACTICAL)' : '5vs5 (BLITZ)'} の待機プレイヤーを探しています`;
     }
 
-    const mode = this.randomMatchMode.toLowerCase();
-    const primarySlotId = `hb-free-${mode}-1`;
-
     // Step 1: Probe slot as Guest using a temporary Peer
     try {
+      if (this.probePeer) {
+        try { this.probePeer.destroy(); } catch(e){}
+        this.probePeer = null;
+      }
       this.probePeer = new Peer();
       let probeResolved = false;
 
       const finishProbe = () => {
         if (probeResolved) return;
         probeResolved = true;
+        if (this.randomMatchTimeout) {
+          clearTimeout(this.randomMatchTimeout);
+          this.randomMatchTimeout = null;
+        }
         if (this.probePeer) {
           try { this.probePeer.destroy(); } catch(e){}
           this.probePeer = null;
         }
         if (this.isRandomMatching) {
-          this.becomeMatchHost(primarySlotId);
+          this.becomeMatchHost(targetSlotId, slotIndex);
         }
       };
 
-      this.randomMatchTimeout = setTimeout(finishProbe, 2600);
+      this.randomMatchTimeout = setTimeout(finishProbe, 1400);
 
       this.probePeer.on('open', () => {
         if (probeResolved || !this.isRandomMatching) return;
-        const testConn = this.probePeer.connect(primarySlotId, { reliable: true });
+        const testConn = this.probePeer.connect(targetSlotId, { reliable: true });
 
         testConn.on('open', () => {
           if (probeResolved || !this.isRandomMatching) {
@@ -1167,7 +1182,10 @@ class HexBastionGame {
             return;
           }
           probeResolved = true;
-          if (this.randomMatchTimeout) clearTimeout(this.randomMatchTimeout);
+          if (this.randomMatchTimeout) {
+            clearTimeout(this.randomMatchTimeout);
+            this.randomMatchTimeout = null;
+          }
 
           // Found an existing host! We become the GUEST.
           this.peer = this.probePeer;
@@ -1187,13 +1205,14 @@ class HexBastionGame {
 
       this.probePeer.on('error', () => finishProbe());
     } catch(e) {
-      this.becomeMatchHost(primarySlotId);
+      this.becomeMatchHost(targetSlotId, slotIndex);
     }
   }
 
-  becomeMatchHost(slotId) {
+  becomeMatchHost(slotId, slotIndex) {
     if (!this.isRandomMatching) return;
-    if (this.searchingStatusText) this.searchingStatusText.textContent = '対戦待機室を開設中...';
+    const currentSlot = ((slotIndex - 1) % 5) + 1;
+    if (this.searchingStatusText) this.searchingStatusText.textContent = `対戦待機室を開設中... (Slot ${currentSlot})`;
     if (this.searchingSubText) this.searchingSubText.textContent = '相手の参加を待っています... (検出時に即座に開始)';
 
     try {
@@ -1210,7 +1229,7 @@ class HexBastionGame {
         this.myTeam = 'blue';
         this.enemyTeam = 'red';
         this.isFlipped = false;
-        if (this.searchingStatusText) this.searchingStatusText.textContent = '相手の接続を待機中...';
+        if (this.searchingStatusText) this.searchingStatusText.textContent = `相手の接続を待機中... (Slot ${currentSlot})`;
       });
 
       this.peer.on('connection', (connection) => {
@@ -1221,14 +1240,24 @@ class HexBastionGame {
       });
 
       this.peer.on('error', (err) => {
-        // If slot ID is already in use (collision), re-attempt connection after slight random delay
+        // If slot ID is already in use / stale, advance to next slot after brief pause
         if (this.isRandomMatching) {
+          if (this.peer) {
+            try { this.peer.destroy(); } catch(e){}
+            this.peer = null;
+          }
           setTimeout(() => {
-            if (this.isRandomMatching) this.startRandomMatchmaking();
-          }, 600 + Math.random() * 800);
+            if (this.isRandomMatching) {
+              this.startRandomMatchmaking(slotIndex + 1);
+            }
+          }, 350);
         }
       });
-    } catch(e) {}
+    } catch(e) {
+      if (this.isRandomMatching) {
+        setTimeout(() => this.startRandomMatchmaking(slotIndex + 1), 350);
+      }
+    }
   }
 
   onMatchFound() {
@@ -1271,7 +1300,7 @@ class HexBastionGame {
   }
 
   setupP2PConnection() {
-    this.conn.on('open', () => {
+    const handleOpen = () => {
       this.isPvP = true;
       this.badgePvp.textContent = 'ONLINE PVP';
       this.badgePvp.style.color = '#34d399';
@@ -1288,15 +1317,30 @@ class HexBastionGame {
           rate: this.myRate,
           cards: this.myCards.map(c => ({ id: c.id, name: c.name, icon: c.icon, desc: c.desc, tag: c.tag }))
         });
+      } else {
+        // Guest sends back HANDSHAKE_GUEST with cards & rate
+        this.sendP2P({
+          type: 'HANDSHAKE_GUEST',
+          rate: this.myRate,
+          cards: this.myCards.map(c => ({ id: c.id, name: c.name, icon: c.icon, desc: c.desc, tag: c.tag }))
+        });
       }
-    });
+    };
 
-    this.conn.on('data', (data) => this.handleP2PData(data));
-    this.conn.on('close', () => {
-      alert('対戦相手が切断しました。');
-      this.isPvP = false;
-      this.badgePvp.textContent = 'VS CPU';
-    });
+    if (this.conn && this.conn.open) {
+      handleOpen();
+    } else if (this.conn) {
+      this.conn.on('open', handleOpen);
+    }
+
+    if (this.conn) {
+      this.conn.on('data', (data) => this.handleP2PData(data));
+      this.conn.on('close', () => {
+        alert('対戦相手が切断しました。');
+        this.isPvP = false;
+        this.badgePvp.textContent = 'VS CPU';
+      });
+    }
   }
 
   applyGameModeSettings() {
@@ -1315,7 +1359,13 @@ class HexBastionGame {
 
   handleP2PData(data) {
     switch (data.type) {
+      case 'HANDSHAKE_GUEST':
+        this.enemyRate = data.rate || 100;
+        this.enemyCards = data.cards || [];
+        this.updateEnemyCardsUI();
+        break;
       case 'HANDSHAKE':
+        this.startModal.classList.add('hidden'); // Double ensure startModal is closed on guest!
         if (data.draftTimer !== undefined) {
           this.draftTimeLimit = data.draftTimer;
         }
@@ -3830,6 +3880,12 @@ class HexBastionGame {
       } else {
         this.startCountdownSequence(true);
       }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (this.probePeer) { try { this.probePeer.destroy(); } catch(e){} }
+      if (this.peer) { try { this.peer.destroy(); } catch(e){} }
+      if (this.conn) { try { this.conn.close(); } catch(e){} }
     });
   }
 
