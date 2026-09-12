@@ -238,6 +238,7 @@ const UNIT_TYPES = {
     emoji: '🏹',
     role: '早撃・機動',
     cost: 2,
+    power: 1,
     recast: 2.5,
     fireRate: 2.2,
     moveCooldown: 2.2,
@@ -245,7 +246,7 @@ const UNIT_TYPES = {
     range: 3,
     hp: 4,
     dirs: [0],
-    desc: '標準型。全方向1マス移動。正面3マス早撃ち。機動力と扱いやすさが抜群。'
+    desc: '標準型。全方向1マス移動。正面3マス早撃ち（威力1）。機動力と扱いやすさが抜群。'
   },
   SPREAD: {
     id: 'SPREAD',
@@ -253,6 +254,7 @@ const UNIT_TYPES = {
     emoji: '💥',
     role: '扇状近接',
     cost: 3,
+    power: 1,
     recast: 3.0,
     fireRate: 2.0,
     moveCooldown: 2.2,
@@ -260,7 +262,7 @@ const UNIT_TYPES = {
     range: 1,
     hp: 5,
     dirs: [0, 1, 5],
-    desc: '扇状迎撃型。全方向1マス移動。正面3方向の至近マスを制圧し、防衛線を構築。'
+    desc: '扇状迎撃型。全方向1マス移動。正面3方向の至近マスを一斉制圧（威力1×3方向）。'
   },
   SNIPER: {
     id: 'SNIPER',
@@ -268,6 +270,7 @@ const UNIT_TYPES = {
     emoji: '🎯',
     role: '長距離狙撃',
     cost: 4,
+    power: 2,
     recast: 4.5,
     fireRate: 3.2,
     moveCooldown: 3.2,
@@ -275,7 +278,7 @@ const UNIT_TYPES = {
     range: 5,
     hp: 3,
     dirs: [0],
-    desc: '長距離狙撃型。直線5マス。移動後足止めが重いため、高台に陣取ると凶悪。'
+    desc: '長距離狙撃砲。直線5マス射程・高威力（威力2）。高台に陣取ると3ダメージの必殺砲に化ける。'
   },
   REFLECTOR: {
     id: 'REFLECTOR',
@@ -283,6 +286,7 @@ const UNIT_TYPES = {
     emoji: '🪞',
     role: '屈折反射',
     cost: 2,
+    power: 0,
     recast: 3.0,
     fireRate: 999,
     moveCooldown: 2.0,
@@ -290,7 +294,7 @@ const UNIT_TYPES = {
     range: 0,
     hp: 5,
     dirs: [],
-    desc: '反射板。全方向1マス移動。味方レーザーを60度屈折させ、奇襲挟み撃ちを作る。'
+    desc: '反射板。全方向1マス移動。味方レーザーを60度屈折させ、障害物越しの奇襲を作る。'
   },
   TANK: {
     id: 'TANK',
@@ -298,6 +302,7 @@ const UNIT_TYPES = {
     emoji: '🛡️',
     role: '重装突撃',
     cost: 5,
+    power: 1,
     recast: 5.0,
     fireRate: 3.0,
     moveCooldown: 2.5,
@@ -306,7 +311,7 @@ const UNIT_TYPES = {
     hp: 8,
     shield: 1,
     dirs: [0],
-    desc: '重装要塞型。【前方3方向のみ移動可能】。シールドで挟まれても1回耐える突撃戦車。'
+    desc: '重装要塞型。【前方3方向のみ移動可能】。高HP8＆シールド1枚。肉壁として敵弾を防ぐ。'
   },
   DISRUPTOR: {
     id: 'DISRUPTOR',
@@ -314,6 +319,7 @@ const UNIT_TYPES = {
     emoji: '🌀',
     role: '撹乱妨害',
     cost: 3,
+    power: 1,
     recast: 3.5,
     fireRate: 2.6,
     moveCooldown: 2.0,
@@ -321,17 +327,19 @@ const UNIT_TYPES = {
     range: 3,
     hp: 4,
     dirs: [0],
-    desc: '妨害撹乱型。全方向1マス移動。直線上の敵の向きを狂わせ、防衛線を破壊する。'
+    desc: '妨害撹乱型。全方向1マス移動。敵にビームを当てるとダメージに加え向きを狂わせる。'
   }
 };
 
-// All 10 Tactical Cards with distinct intuitive Animal Motifs & Face Icons
+// All 10 Tactical Cards with distinct intuitive Animal Motifs & Scope Badges
 const BUFF_CARDS_DB = [
   {
     id: 'STEALTH',
     name: 'ステルス【カメレオン】',
     icon: '🦎',
     tag: '光学迷彩',
+    scope: 'ALL',
+    scopeLabel: '🌐 自軍全体',
     duration: '10秒間',
     desc: '【10秒間】相手画面から自軍の全ユニットの姿が見えなくなる。カメレオンの擬態で不意打ちの挟み撃ちに最適。'
   },
@@ -340,6 +348,8 @@ const BUFF_CARDS_DB = [
     name: 'インビンシブル【ゴリラ】',
     icon: '🦍',
     tag: '絶対無敵',
+    scope: 'SINGLE',
+    scopeLabel: '🎯 味方単体',
     duration: '10秒間',
     desc: '指定した味方1体を【10秒間】完全無敵化。ゴリラの如き剛力でダメージ・反転・ディスラプト妨害を一切無効化。'
   },
@@ -348,6 +358,8 @@ const BUFF_CARDS_DB = [
     name: 'ハイパーブースト【チーター】',
     icon: '🐆',
     tag: '俊足跳躍',
+    scope: 'ALL',
+    scopeLabel: '🌐 自軍全体',
     duration: '3回分',
     desc: '次の【3回】の移動可能距離が2マス（2ヘックス跳躍）に延長。チーターの爆発的瞬発力で敵警戒網を一気に飛び越える。'
   },
@@ -356,6 +368,8 @@ const BUFF_CARDS_DB = [
     name: 'クイックステップ【兎】',
     icon: '🐇',
     tag: 'リキャ半減',
+    scope: 'ALL',
+    scopeLabel: '🌐 自軍全体',
     duration: '5回分',
     desc: '次の【5回】の移動リキャスト（足止め時間）が50%短縮。脱兎の跳躍ステップで盤面を駆け巡る。'
   },
@@ -364,6 +378,8 @@ const BUFF_CARDS_DB = [
     name: 'マインドシャッフル【狐】',
     icon: '🦊',
     tag: '手札破壊',
+    scope: 'ENEMY',
+    scopeLabel: '⚡ 敵全体',
     duration: '即時1回',
     desc: '相手が保持している未消費の戦術カードを全て【強制再抽選】し、妖狐の化かし術で相手の作戦を崩壊させる。'
   },
@@ -372,6 +388,8 @@ const BUFF_CARDS_DB = [
     name: 'スパイサテライト【梟】',
     icon: '🦉',
     tag: '情報看破',
+    scope: 'ALL',
+    scopeLabel: '🌐 看破',
     duration: '試合終了まで',
     desc: '相手の隠された非公開カードを自画面で全て【常時表向きオープン】にする。梟の千里眼で奇襲を完全に見破る。'
   },
@@ -380,6 +398,8 @@ const BUFF_CARDS_DB = [
     name: 'フォートレス【亀】',
     icon: '🐢',
     tag: '高台要塞',
+    scope: 'TILE',
+    scopeLabel: '🗺️ 平地マス',
     duration: '永続',
     desc: '任意の平地ヘックスを1箇所【高台】に隆起させる（射程+1 ＆ 低地からの反転無効要塞化）。大亀の甲羅シェルター。'
   },
@@ -388,6 +408,8 @@ const BUFF_CARDS_DB = [
     name: 'スナイプレンジ【鷹】',
     icon: '🦅',
     tag: '射程延長',
+    scope: 'SINGLE',
+    scopeLabel: '🎯 味方単体',
     duration: '永続',
     desc: '指定した味方ユニット1体の射程を永続的に【+2マス】延長する。鷹の鋭い遠視力で長距離狙撃砲に化ける。'
   },
@@ -396,6 +418,8 @@ const BUFF_CARDS_DB = [
     name: 'ハックシールド【サイ】',
     icon: '🦏',
     tag: '耐性付与',
+    scope: 'SINGLE',
+    scopeLabel: '🎯 味方単体',
     duration: '反転1回消費',
     desc: '指定した味方ユニットに剛角シールドを付与し、次の【オセロ反転を1度完全無効化】する。前線防衛の盾。'
   },
@@ -404,6 +428,8 @@ const BUFF_CARDS_DB = [
     name: 'エナジーサージ【象】',
     icon: '🐘',
     tag: 'マナ全快',
+    scope: 'ALL',
+    scopeLabel: '⚡ 自身',
     duration: '即時',
     desc: 'エネルギーを即座に【全回復（+10）】する。巨象の雄大な生命力で一気に高コスト駒を展開して前線を押し上げる。'
   }
@@ -1418,6 +1444,19 @@ class HexBastionGame {
       case 'DAMAGE_CORE':
         this.applyDamageToCore(data.target, data.amount, false);
         break;
+      case 'DAMAGE_UNIT':
+        const dmgUnit = this.units.get(data.unitKey);
+        if (dmgUnit) {
+          const attacker = data.attackerKey ? this.units.get(data.attackerKey) : null;
+          this.applyDamageToUnit(dmgUnit, data.amount, attacker, false);
+        }
+        break;
+      case 'DESTROY_UNIT':
+        const destUnit = this.units.get(data.unitKey);
+        if (destUnit) {
+          this.destroyUnit(destUnit, false);
+        }
+        break;
     }
   }
 
@@ -1652,6 +1691,7 @@ class HexBastionGame {
       moveCooldownMax: data.moveCooldown * mult,
       isHighGround,
       antiHack: isHighGround,
+      highGroundFatigueTimer: 0,
       isMoving: false,
       renderPos: { x: pos.x, y: pos.y },
       targetPos: { x: pos.x, y: pos.y },
@@ -1832,47 +1872,132 @@ class HexBastionGame {
   }
 
   // ================= 3D PIECE GENERATION (DISTINCTIVE CHESS FIGURES + HEAD BILLBOARD) =================
-  createBillboardBadge(unit, isPlayer) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 96;
-    const ctx = canvas.getContext('2d');
+  drawBillboardContent(badge, unit, isPlayer) {
+    const { ctx, canvas } = badge;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Background capsule badge
     ctx.fillStyle = isPlayer ? 'rgba(6, 16, 38, 0.94)' : 'rgba(38, 6, 16, 0.94)';
     ctx.strokeStyle = isPlayer ? '#00e5ff' : '#ff3366';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(6, 6, 244, 84, 18);
-    else ctx.rect(6, 6, 244, 84);
+    if (ctx.roundRect) ctx.roundRect(6, 6, 268, 88, 16);
+    else ctx.rect(6, 6, 268, 88);
     ctx.fill();
     ctx.stroke();
 
     // Icon Emoji
-    ctx.font = '38px sans-serif';
+    ctx.font = '36px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(unit.emoji || '●', 46, 48);
+    ctx.fillText(unit.emoji || '●', 42, 50);
 
     // Full Unit Name
-    ctx.font = 'bold 22px "Meiryo", "Orbitron", sans-serif';
+    ctx.font = 'bold 20px "Meiryo", "Orbitron", sans-serif';
     ctx.textAlign = 'left';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(unit.name, 90, 36);
+    ctx.fillText(unit.name, 78, 30);
 
-    // Unit Role / Range Subtitle
-    const uData = UNIT_TYPES[unit.id];
-    const roleText = uData ? `[${uData.role} 射程${unit.range}]` : '';
-    ctx.font = 'bold 15px "Meiryo", sans-serif';
-    ctx.fillStyle = isPlayer ? '#38bdf8' : '#fb7185';
-    ctx.fillText(roleText, 90, 66);
+    // HP Bar
+    const maxHp = unit.maxHp || UNIT_TYPES[unit.id]?.hp || 4;
+    const curHp = Math.max(0, unit.hp !== undefined ? unit.hp : maxHp);
+    const hpRatio = Math.max(0, Math.min(1, curHp / maxHp));
+    const barX = 78;
+    const barY = 40;
+    const barW = 115;
+    const barH = 14;
 
+    // HP background track
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(barX, barY, barW, barH, 4);
+    else ctx.rect(barX, barY, barW, barH);
+    ctx.fill();
+    ctx.stroke();
+
+    // HP filled bar (green -> yellow -> red)
+    let barColor = '#22c55e';
+    if (hpRatio <= 0.3) barColor = '#ef4444';
+    else if (hpRatio <= 0.6) barColor = '#eab308';
+    ctx.fillStyle = barColor;
+    const fillW = Math.max(0, barW * hpRatio);
+    if (fillW > 0) {
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(barX, barY, fillW, barH, 4);
+      else ctx.rect(barX, barY, fillW, barH);
+      ctx.fill();
+    }
+
+    // HP Text
+    ctx.font = 'bold 12px "Orbitron", monospace';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.fillText(`HP ${curHp}/${maxHp}`, 200, 52);
+
+    // Subtitle: Fatigue or Role & Range
+    ctx.font = 'bold 13px "Meiryo", sans-serif';
+    if (unit.highGroundFatigueTimer > 0) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText(`⚠️ 疲労鈍足 (${unit.highGroundFatigueTimer.toFixed(0)}s)`, 78, 77);
+    } else {
+      const uData = UNIT_TYPES[unit.id];
+      const roleText = uData ? `[${uData.role} 射程${unit.range}]` : '';
+      ctx.fillStyle = isPlayer ? '#38bdf8' : '#fb7185';
+      ctx.fillText(roleText, 78, 77);
+    }
+
+    if (badge.texture) badge.texture.needsUpdate = true;
+  }
+
+  createBillboardBadge(unit, isPlayer) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 280;
+    canvas.height = 100;
+    const ctx = canvas.getContext('2d');
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(2.2, 0.82, 1.0);
-    return { sprite, texture, canvas, ctx };
+    sprite.scale.set(2.5, 0.89, 1.0);
+
+    const badge = { sprite, texture, canvas, ctx };
+    this.drawBillboardContent(badge, unit, isPlayer);
+    return badge;
+  }
+
+  refreshBillboardBadge(group, unit) {
+    if (!group || !group.userData || !group.userData.badgeObj) return;
+    const isPlayer = (unit.owner === this.myTeam);
+    this.drawBillboardContent(group.userData.badgeObj, unit, isPlayer);
+  }
+
+  updateUnitMeshColor(group, newOwner) {
+    if (!group || !group.userData) return;
+    const isPlayer = (newOwner === this.myTeam);
+    const teamColor = isPlayer ? 0x0284c7 : 0xbe123c;
+    const glowColor = isPlayer ? 0x00e5ff : 0xff3366;
+
+    if (group.userData.baseMat) {
+      group.userData.baseMat.emissive.setHex(teamColor);
+    }
+    if (group.userData.glowMat) {
+      group.userData.glowMat.color.setHex(glowColor);
+      group.userData.glowMat.emissive.setHex(glowColor);
+    }
+    if (group.userData.ringMat) {
+      group.userData.ringMat.color.setHex(glowColor);
+    }
+    if (group.userData.arrowMat) {
+      group.userData.arrowMat.color.setHex(glowColor);
+    }
+    group.userData.isPlayer = isPlayer;
+
+    const unit = this.units.get(group.userData.unitKey);
+    if (unit && group.userData.badgeObj) {
+      this.drawBillboardContent(group.userData.badgeObj, unit, isPlayer);
+    }
   }
 
   createUnitMesh3D(unit) {
@@ -2097,6 +2222,9 @@ class HexBastionGame {
     group.userData = {
       unitKey: unit.key,
       glowMat,
+      baseMat,
+      ringMat,
+      arrowMat,
       teamColor,
       glowColor,
       isPlayer,
@@ -2135,20 +2263,6 @@ class HexBastionGame {
         const jumpY = targetBaseY + Math.sin(t * Math.PI) * 2.4;
         group.position.y = jumpY;
         group.rotation.x = t * Math.PI;
-
-        if (t > 0.45 && group.userData.glowMat) {
-          const isPlayerNow = (unit.owner === this.myTeam);
-          const newGlow = isPlayerNow ? 0x00e5ff : 0xff3366;
-          group.userData.glowMat.color.setHex(newGlow);
-          group.userData.glowMat.emissive.setHex(newGlow);
-
-          if (group.userData.badgeObj) {
-            group.remove(group.userData.badgeObj.sprite);
-            group.userData.badgeObj = this.createBillboardBadge(unit, isPlayerNow);
-            group.userData.badgeObj.sprite.position.y = group.userData.headHeight + 0.35;
-            group.add(group.userData.badgeObj.sprite);
-          }
-        }
 
         if (t >= 1.0) {
           unit.flipAnim = null;
@@ -2467,9 +2581,16 @@ class HexBastionGame {
     this.units.set(targetKey, unit);
     targetCell.owner = unit.owner;
 
+    const wasHighGround = unit.isHighGround;
     unit.isHighGround = (targetCell.terrain === TERRAIN.HIGH_GROUND);
     unit.antiHack = unit.isHighGround;
     unit.range = UNIT_TYPES[unit.id].range + (unit.isHighGround ? 1 : 0);
+
+    // High Ground Descent Penalty: Moving down from high ground causes 10 seconds fatigue (2x move CD)
+    if (wasHighGround && !unit.isHighGround) {
+      unit.highGroundFatigueTimer = 10.0;
+      this.showFloatingText("⚠️ 高台疲労 (10s 鈍足)", newPos, '#f59e0b');
+    }
 
     unit.isMoving = true;
     unit.renderPos = { x: oldPos.x, y: oldPos.y };
@@ -2493,14 +2614,28 @@ class HexBastionGame {
     unit.moveProgress = 1.0;
     unit.renderPos = { ...unit.targetPos };
 
-    const cooldownMultiplier = (unit.owner === this.myTeam && this.quickStepCharges > 0) ? 0.5 : 1.0;
+    let cooldownMultiplier = (unit.owner === this.myTeam && this.quickStepCharges > 0) ? 0.5 : 1.0;
+    // High ground penalty: 2x move cooldown while on high ground (harder to move/descend)
+    if (unit.isHighGround) {
+      cooldownMultiplier *= 2.0;
+    }
+    // Descent fatigue penalty: 2x move cooldown for 10s after descending
+    if (unit.highGroundFatigueTimer > 0) {
+      cooldownMultiplier *= 2.0;
+    }
     unit.moveCooldown = unit.moveCooldownMax * cooldownMultiplier;
+
+    const group = this.unit3DMeshes.get(unit.key);
+    if (group) {
+      this.refreshBillboardBadge(group, unit);
+    }
 
     this.checkReversals(unit);
     this.fireUnitWeapon(unit);
     unit.fireCooldown = unit.fireRate;
 
-    this.showFloatingText("ENGAGED!", unit.renderPos, unit.owner === this.myTeam ? '#00e5ff' : '#ff3366');
+    const screenPos = this.getUnitScreenPos(unit);
+    this.showFloatingText("ENGAGED!", screenPos, unit.owner === this.myTeam ? '#00e5ff' : '#ff3366');
   }
 
   // ================= Reversals =================
@@ -2558,10 +2693,16 @@ class HexBastionGame {
           const c = this.grid.get(target.key);
           if (c) c.owner = originOwner;
 
+          // Instant color and billboard update at frame 0 of reversal
+          const targetMesh = this.unit3DMeshes.get(target.key);
+          if (targetMesh) {
+            this.updateUnitMeshColor(targetMesh, originOwner);
+          }
+
           anyReversed = true;
           if (originOwner === this.myTeam) this.stats.reversals++;
 
-          const pos = this.hexToPixel(target.q, target.r);
+          const pos = this.getUnitScreenPos(target);
           this.createReversalParticles(pos, originOwner === this.myTeam ? '#00e5ff' : '#ff3366');
           this.showFloatingText("REVERSAL!", pos, originOwner === this.myTeam ? '#00e5ff' : '#ff3366');
         });
@@ -2580,8 +2721,21 @@ class HexBastionGame {
     if (this.stealthTimer > 0) this.stealthTimer -= dt;
     if (this.enemyStealthTimer > 0) this.enemyStealthTimer -= dt;
 
-    this.units.forEach(unit => {
+    const unitList = Array.from(this.units.values());
+    unitList.forEach(unit => {
+      if (!this.units.has(unit.key)) return;
+
       if (unit.invincibleTimer > 0) unit.invincibleTimer -= dt;
+
+      // High Ground Fatigue countdown (after descending from high ground)
+      if (unit.highGroundFatigueTimer > 0) {
+        const prevSec = Math.ceil(unit.highGroundFatigueTimer);
+        unit.highGroundFatigueTimer = Math.max(0, unit.highGroundFatigueTimer - dt);
+        if (Math.ceil(unit.highGroundFatigueTimer) !== prevSec) {
+          const group = this.unit3DMeshes.get(unit.key);
+          if (group) this.refreshBillboardBadge(group, unit);
+        }
+      }
 
       if (unit.isMoving) {
         unit.moveProgress += dt * 4.0;
@@ -2658,9 +2812,22 @@ class HexBastionGame {
             this.createLaserBeam(fromPixel, curPixel, unit.owner);
             this.createHitSparks(curPixel, unit.owner === this.myTeam ? '#00e5ff' : '#ff3366');
 
-            if (unit.id === 'DISRUPTOR' && targetUnit.invincibleTimer <= 0) {
+            // High Ground Combat Dynamics:
+            // 1. Firing down from high ground grants +1 damage bonus!
+            // 2. Firing up from low ground against high ground reduces damage by 1 (minimum 1).
+            let dmg = uData.power || 1;
+            if (unit.isHighGround && !targetUnit.isHighGround) {
+              dmg += 1; // High ground firepower bonus!
+            } else if (!unit.isHighGround && targetUnit.isHighGround) {
+              dmg = Math.max(1, dmg - 1); // Fortified high ground resistance
+            }
+
+            this.applyDamageToUnit(targetUnit, dmg, unit, true);
+
+            if (unit.id === 'DISRUPTOR' && targetUnit.hp > 0 && targetUnit.invincibleTimer <= 0) {
               targetUnit.direction = (targetUnit.direction + Math.floor(Math.random() * 4) + 1) % 6;
-              this.showFloatingText("DISRUPTED!", curPixel, "#a855f7");
+              const screenPos = this.getUnitScreenPos(targetUnit);
+              this.showFloatingText("DISRUPTED!", screenPos, "#a855f7");
             }
             break;
           }
@@ -2690,6 +2857,15 @@ class HexBastionGame {
 
       if (owner === this.myTeam && cell.terrain === TERRAIN.CORE_TOP) {
         this.damageCore('enemy', 1);
+        break;
+      } else if (owner === this.enemyTeam && cell.terrain === TERRAIN.CORE_BOTTOM) {
+        this.damageCore('player', 1);
+        break;
+      }
+
+      const targetUnit = this.units.get(k);
+      if (targetUnit && targetUnit.owner !== owner) {
+        this.applyDamageToUnit(targetUnit, 1, null, true);
         break;
       }
     }
@@ -2732,6 +2908,88 @@ class HexBastionGame {
 
     if (this.isPvP && broadcast) {
       this.sendP2P({ type: 'DAMAGE_CORE', target, amount });
+    }
+  }
+
+  // ================= UNIT DAMAGE & DESTRUCTION SYSTEM =================
+  applyDamageToUnit(targetUnit, amount, attackerUnit = null, broadcast = true) {
+    if (!targetUnit || targetUnit.hp <= 0) return;
+
+    if (targetUnit.invincibleTimer > 0) {
+      const pos = this.getUnitScreenPos(targetUnit);
+      this.showFloatingText("INVINCIBLE!", pos, "#f59e0b");
+      return;
+    }
+
+    sounds.playHit();
+    targetUnit.hp = Math.max(0, targetUnit.hp - amount);
+
+    const pos = this.getUnitScreenPos(targetUnit);
+    this.createHitSparks(pos, targetUnit.owner === this.myTeam ? '#ff3366' : '#00e5ff');
+    this.showFloatingText(`-${amount} HP`, pos, '#ef4444');
+
+    if (attackerUnit && attackerUnit.owner === this.myTeam) {
+      this.stats.damageDealt += amount;
+    }
+
+    // Refresh billboard badge to show real-time remaining HP
+    const group = this.unit3DMeshes.get(targetUnit.key);
+    if (group) {
+      this.refreshBillboardBadge(group, targetUnit);
+    }
+
+    if (this.isPvP && broadcast) {
+      this.sendP2P({
+        type: 'DAMAGE_UNIT',
+        unitKey: targetUnit.key,
+        amount: amount,
+        attackerKey: attackerUnit ? attackerUnit.key : null
+      });
+    }
+
+    // Unit destroyed if HP reaches 0: removed from board
+    if (targetUnit.hp <= 0) {
+      this.destroyUnit(targetUnit, broadcast);
+    }
+  }
+
+  destroyUnit(unit, broadcast = true) {
+    const key = unit.key;
+    if (!this.units.has(key)) return;
+
+    sounds.playHit();
+    const pos = this.getUnitScreenPos(unit);
+    this.createReversalParticles(pos, '#ef4444');
+    this.showFloatingText("💥 DESTROYED!", pos, '#ef4444');
+
+    // Remove 3D Mesh
+    const group = this.unit3DMeshes.get(key);
+    if (group) {
+      this.scene.remove(group);
+      this.unit3DMeshes.delete(key);
+    }
+
+    // Clear board occupancy
+    const cell = this.grid.get(key);
+    if (cell) {
+      cell.owner = null;
+    }
+
+    // Remove from unit registry
+    this.units.delete(key);
+    this.updateUnitCountUI();
+
+    if (this.selectedBoardUnitKey === key) {
+      this.selectedBoardUnitKey = null;
+      this.validMoveHexes = [];
+      this.updateActionStatus();
+    }
+
+    if (this.isPvP && broadcast) {
+      this.sendP2P({
+        type: 'DESTROY_UNIT',
+        unitKey: key
+      });
     }
   }
 
@@ -3064,11 +3322,14 @@ class HexBastionGame {
       el.innerHTML = `
         <span class="card-icon">${card.icon}</span>
         <div class="card-name">${card.name}</div>
-        <span class="card-tag">${card.tag}</span>
+        <div style="display: flex; gap: 3px; justify-content: center; align-items: center; margin-top: 2px;">
+          <span class="card-tag">${card.tag}</span>
+          ${card.scopeLabel ? `<span class="card-scope-badge">${card.scopeLabel}</span>` : ''}
+        </div>
       `;
 
       el.addEventListener('mouseenter', (e) => {
-        this.showTooltip(e, card.name, `${card.tag} (${card.duration || ''})`, card.desc);
+        this.showTooltip(e, card.name, `${card.tag} (${card.duration || ''}) ${card.scopeLabel ? '[' + card.scopeLabel + ']' : ''}`, card.desc);
       });
       el.addEventListener('mouseleave', () => this.hideTooltip());
 
@@ -3108,7 +3369,10 @@ class HexBastionGame {
       item.innerHTML = `
         <span class="briefing-card-icon">${card.icon}</span>
         <div class="briefing-card-name">${card.name}</div>
-        <span class="briefing-card-tag">${card.tag}</span>
+        <div style="display: flex; gap: 6px; justify-content: center; align-items: center; margin-top: 4px; margin-bottom: 4px;">
+          <span class="briefing-card-tag">${card.tag}</span>
+          ${card.scopeLabel ? `<span class="briefing-card-scope-badge">${card.scopeLabel}</span>` : ''}
+        </div>
         <div class="briefing-card-desc">${card.desc}</div>
       `;
       this.briefingCardsContainer.appendChild(item);
@@ -3127,7 +3391,10 @@ class HexBastionGame {
       item.innerHTML = `
         <span class="archive-card-icon">${card.icon}</span>
         <div class="archive-card-name">${card.name}</div>
-        <span class="archive-card-tag">${card.tag}</span>
+        <div style="display: flex; gap: 6px; justify-content: center; align-items: center; margin-top: 4px; margin-bottom: 4px;">
+          <span class="archive-card-tag">${card.tag}</span>
+          ${card.scopeLabel ? `<span class="archive-card-scope-badge">${card.scopeLabel}</span>` : ''}
+        </div>
         <div class="archive-card-desc">${card.desc}</div>
       `;
       grid.appendChild(item);
@@ -3404,21 +3671,41 @@ class HexBastionGame {
     requestAnimationFrame((t) => this.render(t));
   }
 
-  // Draw white circular line arc around units to clearly visualize recast progress
+  // Project 3D unit mesh position directly onto screen canvas so gauges track WASD/orbit flawlessly
+  getUnitScreenPos(unit) {
+    if (this.camera && this.renderer3D) {
+      const group = this.unit3DMeshes ? this.unit3DMeshes.get(unit.key) : null;
+      if (group) {
+        const v = new THREE.Vector3();
+        group.getWorldPosition(v);
+        v.project(this.camera);
+        if (v.z <= 1) {
+          return {
+            x: (v.x * 0.5 + 0.5) * this.displayWidth,
+            y: (-v.y * 0.5 + 0.5) * this.displayHeight
+          };
+        }
+      }
+    }
+    return unit.renderPos || this.hexToPixel(unit.q, unit.r);
+  }
+
+  // Draw white circular line arc around units to clearly visualize recast progress (tracks 3D mesh via WASD)
   drawUnitCooldownGauges() {
     this.units.forEach(unit => {
-      if (!unit.renderPos) return;
       const isEnemy = (unit.owner === this.enemyTeam);
       const isStealth = (isEnemy && this.enemyStealthTimer > 0) || (!isEnemy && this.stealthTimer > 0);
       if (isStealth) return;
 
-      const px = unit.renderPos.x;
-      const py = unit.renderPos.y;
+      const pos = this.getUnitScreenPos(unit);
+      if (!pos) return;
+      const px = pos.x;
+      const py = pos.y;
 
       // Base faint track
       this.ctx.beginPath();
-      this.ctx.arc(px, py, 16, 0, Math.PI * 2);
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      this.ctx.arc(px, py, 18, 0, Math.PI * 2);
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
       this.ctx.lineWidth = 2;
       this.ctx.stroke();
 
@@ -3426,7 +3713,7 @@ class HexBastionGame {
       if (unit.fireCooldown > 0) {
         const progress = Math.max(0, Math.min(1, 1 - (unit.fireCooldown / unit.fireRate)));
         this.ctx.beginPath();
-        this.ctx.arc(px, py, 16, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
+        this.ctx.arc(px, py, 18, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
         this.ctx.strokeStyle = '#ffffff';
         this.ctx.shadowColor = '#ffffff';
         this.ctx.shadowBlur = 8;
@@ -3437,19 +3724,20 @@ class HexBastionGame {
         // Ready pulse
         const pulse = 0.5 + 0.4 * Math.sin(performance.now() * 0.007);
         this.ctx.beginPath();
-        this.ctx.arc(px, py, 16, 0, Math.PI * 2);
+        this.ctx.arc(px, py, 18, 0, Math.PI * 2);
         this.ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
       }
 
-      // Move Recast (Emerald Green Line on slightly larger circle)
+      // Move Recast (Emerald Green Line on slightly larger circle, or Amber if fatigued)
       if (unit.moveCooldown > 0) {
         const mProgress = Math.max(0, Math.min(1, 1 - (unit.moveCooldown / unit.moveCooldownMax)));
+        const moveColor = unit.highGroundFatigueTimer > 0 ? '#f59e0b' : '#34d399';
         this.ctx.beginPath();
-        this.ctx.arc(px, py, 21, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * mProgress));
-        this.ctx.strokeStyle = '#34d399';
-        this.ctx.shadowColor = '#34d399';
+        this.ctx.arc(px, py, 23, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * mProgress));
+        this.ctx.strokeStyle = moveColor;
+        this.ctx.shadowColor = moveColor;
         this.ctx.shadowBlur = 6;
         this.ctx.lineWidth = 2.5;
         this.ctx.stroke();

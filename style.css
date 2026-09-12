@@ -495,6 +495,31 @@ body {
   border-radius: 4px;
 }
 
+.card-scope-badge {
+  font-size: 8px;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.briefing-card-scope-badge,
+.archive-card-scope-badge {
+  font-size: 9px;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+
 /* Energy Panel */
 #energy-panel {
   flex: 1;
