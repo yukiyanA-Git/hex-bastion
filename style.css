@@ -407,15 +407,15 @@ body {
   border-top: 1px solid var(--panel-border);
   z-index: 20;
   gap: 6px;
-  min-height: 155px;
+  min-height: 120px;
 }
 
 .bottom-hud-panels {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   width: 100%;
-  gap: 16px;
+  gap: 28px;
 }
 
 .panel-header {
@@ -520,53 +520,38 @@ body {
 }
 
 
-/* Energy Panel */
+/* Policy B: In-Battle Pure Board Chess Mode */
+#unit-deck-panel {
+  display: none !important;
+}
+
 #energy-panel {
   flex: 1;
-  max-width: 260px;
+  max-width: 480px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 6px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  justify-content: center;
+  background: rgba(10, 18, 36, 0.65);
+  padding: 14px 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
-.energy-header {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
-  font-weight: bold;
-  color: var(--player-blue);
-  margin-bottom: 4px;
-}
-
-.energy-meter-container {
-  width: 100%;
-  height: 12px;
-  background: #021424;
-  border-radius: 6px;
-  border: 1px solid rgba(0, 229, 255, 0.3);
-  overflow: hidden;
-}
-
-#energy-meter {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, #0284c7, var(--player-blue));
-  box-shadow: 0 0 10px var(--player-blue);
-  transition: width 0.15s linear;
+#energy-panel .energy-header,
+#energy-panel .energy-meter-container {
+  display: none !important;
 }
 
 .selection-status {
-  margin-top: 5px;
-  font-size: 11px;
-  color: var(--text-muted);
+  margin-top: 0;
+  font-size: 13px;
+  font-family: 'Meiryo', 'Orbitron', sans-serif;
+  color: #e2e8f0;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.45;
 }
 
 /* Unit Deck */

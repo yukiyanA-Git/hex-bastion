@@ -425,13 +425,13 @@ const BUFF_CARDS_DB = [
   },
   {
     id: 'ENERGY_SURGE',
-    name: 'エナジーサージ【象】',
+    name: 'ギガントサージ【象】',
     icon: '🐘',
-    tag: 'マナ全快',
-    scope: 'ALL',
-    scopeLabel: '⚡ 自身',
-    duration: '即時',
-    desc: 'エネルギーを即座に【全回復（+10）】する。巨象の雄大な生命力で一気に高コスト駒を展開して前線を押し上げる。'
+    tag: 'HP1.3倍',
+    scope: 'SINGLE',
+    scopeLabel: '🎯 味方単体',
+    duration: '永続',
+    desc: '指定した味方ユニット1体の最大HPと現在HPを永続的に【1.3倍】に強化する。巨象の強靭な生命力で前線の要塞と化す。'
   }
 ];
 
@@ -1483,6 +1483,22 @@ class HexBastionGame {
         cell.terrain = TERRAIN.HIGH_GROUND;
         this.build3DGrid();
       }
+    } else if (card.id === 'ENERGY_SURGE') {
+      const u = this.units.get(targetKey);
+      if (u) {
+        const oldMax = u.maxHp;
+        u.maxHp = Math.max(oldMax + 1, Math.round(u.maxHp * 1.3));
+        const hpGain = u.maxHp - oldMax;
+        u.hp = Math.min(u.maxHp, u.hp + hpGain);
+        const group = this.unit3DMeshes.get(u.key);
+        if (group) this.refreshBillboardBadge(group, u);
+      }
+    } else if (card.id === 'OVERCHARGE') {
+      const u = this.units.get(targetKey);
+      if (u) u.range += 2;
+    } else if (card.id === 'ANTIHACK') {
+      const u = this.units.get(targetKey);
+      if (u) u.shield = (u.shield || 0) + 1;
     }
   }
 
@@ -3081,10 +3097,24 @@ class HexBastionGame {
         break;
 
       case 'ENERGY_SURGE':
-        this.playerEnergy = this.maxEnergy;
-        this.showFloatingText("+10 ENERGY!", { x: this.centerX, y: this.centerY + 160 }, '#00e5ff');
-        sounds.playBuff();
-        success = true;
+        if (!targetHexKey) return;
+        const targetUnitEle = this.units.get(targetHexKey);
+        if (targetUnitEle && targetUnitEle.owner === this.myTeam) {
+          const oldMax = targetUnitEle.maxHp;
+          targetUnitEle.maxHp = Math.max(oldMax + 1, Math.round(targetUnitEle.maxHp * 1.3));
+          const hpGain = targetUnitEle.maxHp - oldMax;
+          targetUnitEle.hp = Math.min(targetUnitEle.maxHp, targetUnitEle.hp + hpGain);
+
+          const group = this.unit3DMeshes.get(targetUnitEle.key);
+          if (group) {
+            this.refreshBillboardBadge(group, targetUnitEle);
+          }
+
+          sounds.playBuff();
+          const screenPos = this.getUnitScreenPos(targetUnitEle);
+          this.showFloatingText(`HP x1.3! (${targetUnitEle.hp}/${targetUnitEle.maxHp})`, screenPos, '#22c55e');
+          success = true;
+        }
         break;
 
       case 'SCAFFOLD':
@@ -3222,34 +3252,7 @@ class HexBastionGame {
       }
     }
 
-    // AI Deploy (Own half: r < 0)
-    const currentEnemyCount = this.getUnitCount(this.enemyTeam);
-    if (currentEnemyCount < this.getMaxUnits()) {
-      const possibleUnits = ['ARROW', 'SPREAD', 'SNIPER', 'TANK', 'DISRUPTOR'];
-      const pickId = possibleUnits[Math.floor(Math.random() * possibleUnits.length)];
-      const uCost = UNIT_TYPES[pickId].cost;
-
-      if (this.aiEnergy >= uCost) {
-        const candidateHexes = [];
-        this.grid.forEach(cell => {
-          if (cell.terrain === TERRAIN.OBSTACLE || cell.terrain === TERRAIN.CORE_BOTTOM || cell.terrain === TERRAIN.CORE_TOP) return;
-          if (this.units.has(`${cell.q},${cell.r}`)) return;
-          if (cell.r < 0) {
-            let score = -cell.r * 2;
-            if (cell.terrain === TERRAIN.HIGH_GROUND) score += 5;
-            candidateHexes.push({ cell, score });
-          }
-        });
-
-        if (candidateHexes.length > 0) {
-          candidateHexes.sort((a, b) => b.score - a.score);
-          const chosen = candidateHexes[0].cell;
-          this.aiEnergy -= uCost;
-          this.spawnUnit(chosen.q, chosen.r, pickId, this.enemyTeam, 3);
-          this.aiLastActionTime = now;
-        }
-      }
-    }
+    // Policy B: No mid-battle deployment. Players fight purely with fielded units.
   }
 
   // ================= UI Setup =================
@@ -3338,7 +3341,7 @@ class HexBastionGame {
         sounds.init();
         if (card.used) return;
 
-        if (['STEALTH', 'HYPER_BOOST', 'QUICK_STEP', 'MIND_DISRUPT', 'SPY_SATELLITE', 'ENERGY_SURGE'].includes(card.id)) {
+        if (['STEALTH', 'HYPER_BOOST', 'QUICK_STEP', 'MIND_DISRUPT', 'SPY_SATELLITE'].includes(card.id)) {
           this.useBuffCard(card);
           return;
         }
@@ -3541,10 +3544,6 @@ class HexBastionGame {
       const unit = this.units.get(this.selectedBoardUnitKey);
       this.actionTextEl.textContent = `【${unit.name}】緑マスで移動 / 駒自身をクリックで回転`;
       this.actionTextEl.style.color = '#34d399';
-    } else if (this.selectedDeckIndex !== null) {
-      const unit = UNIT_TYPES[this.deckSlots[this.selectedDeckIndex].unitId];
-      this.actionTextEl.textContent = `【${unit.name}】自陣手前側の空きマスをクリックして配置`;
-      this.actionTextEl.style.color = '#00e5ff';
     } else if (this.selectedBuffCard !== null) {
       this.actionTextEl.textContent = `【${this.selectedBuffCard.name}】対象マス/ユニットをクリック`;
       this.actionTextEl.style.color = '#fbbf24';
@@ -4036,46 +4035,7 @@ class HexBastionGame {
         return;
       }
 
-      // 2. Unit Deployment (STRICTLY OWN HALF: r > 0, or r < 0 if flipped)
-      if (this.selectedDeckIndex !== null) {
-        const isOwnHalf = this.isFlipped ? (cell.r < 0) : (cell.r > 0);
-
-        if (!isOwnHalf) {
-          this.showFloatingText("自軍手前側にしか配置できません！", this.mouseCanvasPos, '#fbbf24');
-          return;
-        }
-
-        if (this.getUnitCount(this.myTeam) >= this.getMaxUnits()) {
-          this.showFloatingText(`駒数上限（${this.getMaxUnits()}体）です！`, this.mouseCanvasPos, '#fbbf24');
-          return;
-        }
-
-        const slot = this.deckSlots[this.selectedDeckIndex];
-        const data = UNIT_TYPES[slot.unitId];
-
-        if (this.playerEnergy >= data.cost) {
-          if (cell.terrain !== TERRAIN.OBSTACLE && cell.terrain !== TERRAIN.CORE_BOTTOM && cell.terrain !== TERRAIN.CORE_TOP) {
-            if (!this.units.has(this.hoverHexKey)) {
-              this.playerEnergy -= data.cost;
-              this.spawnUnit(cell.q, cell.r, slot.unitId, this.myTeam);
-
-              slot.readyAt = (performance.now() / 1000) + (data.recast * this.getRecastMultiplier());
-              this.selectedDeckIndex = null;
-              this.updateDeckSelectionStyles();
-              this.updateActionStatus();
-              this.updateUnitInspector();
-              return;
-            } else {
-              this.showFloatingText("マスが埋まっています", this.mouseCanvasPos, '#ff3366');
-            }
-          }
-        } else {
-          this.showFloatingText("エネルギー不足！", this.mouseCanvasPos, '#ff3366');
-        }
-        return;
-      }
-
-      // 3. Move Piece
+      // 2. Move Piece
       if (this.selectedBoardUnitKey) {
         const unit = this.units.get(this.selectedBoardUnitKey);
         if (unit) {
