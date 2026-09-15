@@ -635,6 +635,7 @@ class HexBastionGame {
     this.mouseNDC = null;
     this.hexPillarMeshes = new Map();         // key -> THREE.Mesh
     this.hexPillarInteractiveList = [];        // array for Raycaster
+    this.unitInteractiveList = [];             // array of unit hitboxes & sprites for Raycaster
     this.unit3DMeshes = new Map();             // key -> THREE.Group
     this.crystalCores = { blue: null, red: null };
     this.laserBeams3D = [];
@@ -672,6 +673,20 @@ class HexBastionGame {
     const x = size * (Math.sqrt(3) * tq + Math.sqrt(3) / 2 * tr);
     const z = size * (1.5 * tr);
     return { x, z };
+  }
+
+  worldToHex3D(x, z) {
+    const size = this.getHexRadius3D();
+    const tr = z / (1.5 * size);
+    const tq = (x / (Math.sqrt(3) * size)) - (tr / 2);
+    const rounded = this.hexRound(tq, tr, -tq - tr);
+    let q = rounded.q;
+    let r = rounded.r;
+    if (this.isFlipped) {
+      q = -q;
+      r = -r;
+    }
+    return `${q},${r}`;
   }
 
   initCanvas() {
@@ -1979,6 +1994,7 @@ class HexBastionGame {
     sprite.scale.set(2.5, 0.89, 1.0);
 
     const badge = { sprite, texture, canvas, ctx };
+    sprite.userData = { isUnitHitBox: true, unitKey: unit.key };
     this.drawBillboardContent(badge, unit, isPlayer);
     return badge;
   }
@@ -2235,12 +2251,21 @@ class HexBastionGame {
     badgeObj.sprite.position.y = headHeight + 0.35;
     group.add(badgeObj.sprite);
 
+    // 4. Transparent 3D Unit Hitbox Collider (covers figurine and billboard for 100% accurate mouse picking)
+    const hitBoxGeom = new THREE.CylinderGeometry(0.75, 0.75, headHeight + 0.9, 8);
+    const hitBoxMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+    const hitBoxMesh = new THREE.Mesh(hitBoxGeom, hitBoxMat);
+    hitBoxMesh.position.y = (headHeight + 0.9) / 2;
+    hitBoxMesh.userData = { isUnitHitBox: true, unitKey: unit.key };
+    group.add(hitBoxMesh);
+
     group.userData = {
       unitKey: unit.key,
       glowMat,
       baseMat,
       ringMat,
       arrowMat,
+      hitBoxMesh,
       teamColor,
       glowColor,
       isPlayer,
@@ -2376,6 +2401,19 @@ class HexBastionGame {
       if (!activeKeys.has(key)) {
         this.scene.remove(mesh);
         this.unit3DMeshes.delete(key);
+      }
+    });
+
+    // Rebuild active unit interactive targets for Raycaster (handles unit selection & click detection with 100% accuracy)
+    this.unitInteractiveList = [];
+    this.unit3DMeshes.forEach((meshGroup) => {
+      if (meshGroup.visible) {
+        if (meshGroup.userData?.hitBoxMesh) {
+          this.unitInteractiveList.push(meshGroup.userData.hitBoxMesh);
+        }
+        if (meshGroup.userData?.badgeObj?.sprite) {
+          this.unitInteractiveList.push(meshGroup.userData.badgeObj.sprite);
+        }
       }
     });
 
@@ -3951,25 +3989,55 @@ class HexBastionGame {
 
       let foundKey = null;
 
-      // 1. Precise 3D Raycast on Hex Pillars
-      if (this.raycaster && this.camera && this.hexPillarInteractiveList.length > 0) {
+      // 1. Precise 3D Raycast
+      if (this.raycaster && this.camera) {
         this.mouseNDC.x = (clientX / rect.width) * 2 - 1;
         this.mouseNDC.y = -(clientY / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouseNDC, this.camera);
-        const intersects = this.raycaster.intersectObjects(this.hexPillarInteractiveList, false);
-        if (intersects.length > 0 && intersects[0].object.userData) {
-          foundKey = intersects[0].object.userData.key;
+
+        // A. Priority 1: Check unit click targets (figurine body + billboard badge)
+        if (this.unitInteractiveList && this.unitInteractiveList.length > 0) {
+          const unitHits = this.raycaster.intersectObjects(this.unitInteractiveList, false);
+          if (unitHits.length > 0 && unitHits[0].object.userData?.unitKey) {
+            const uKey = unitHits[0].object.userData.unitKey;
+            if (this.units.has(uKey)) {
+              foundKey = uKey;
+            }
+          }
+        }
+
+        // B. Priority 2: Check floor hex pillars
+        if (!foundKey && this.hexPillarInteractiveList.length > 0) {
+          const floorHits = this.raycaster.intersectObjects(this.hexPillarInteractiveList, false);
+          if (floorHits.length > 0 && floorHits[0].object.userData?.key) {
+            foundKey = floorHits[0].object.userData.key;
+          }
+        }
+
+        // C. Priority 3: 3D Ground Plane Intersection (exact 3D math fallback for gaps/edges)
+        if (!foundKey) {
+          const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.3);
+          const hitPoint = new THREE.Vector3();
+          if (this.raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
+            const key = this.worldToHex3D(hitPoint.x, hitPoint.z);
+            if (this.grid.has(key)) {
+              foundKey = key;
+            }
+          }
         }
       }
 
-      // 2. Fallback to 2D math if raycaster missed
-      if (!foundKey) {
-        const hex = this.pixelToHex(clientX, clientY);
-        const key = `${hex.q},${hex.r}`;
-        if (this.grid.has(key)) foundKey = key;
-      }
-
       this.hoverHexKey = foundKey;
+
+      // Dynamic cursor feedback for intuitive clicks
+      if (foundKey) {
+        const hasUnit = this.units.has(foundKey);
+        const isMove = this.validMoveHexes.includes(foundKey);
+        const isBuff = !!this.selectedBuffCard;
+        this.canvas.style.cursor = (hasUnit || isMove || isBuff) ? 'pointer' : 'default';
+      } else {
+        this.canvas.style.cursor = 'default';
+      }
     };
 
     // Mouse Move (Hover detection)
