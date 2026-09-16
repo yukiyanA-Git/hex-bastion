@@ -1994,7 +1994,7 @@ class HexBastionGame {
     sprite.scale.set(2.5, 0.89, 1.0);
 
     const badge = { sprite, texture, canvas, ctx };
-    sprite.userData = { isUnitHitBox: true, unitKey: unit.key };
+    sprite.userData = { isBadge: true, unitKey: unit.key };
     this.drawBillboardContent(badge, unit, isPlayer);
     return badge;
   }
@@ -2251,11 +2251,11 @@ class HexBastionGame {
     badgeObj.sprite.position.y = headHeight + 0.35;
     group.add(badgeObj.sprite);
 
-    // 4. Transparent 3D Unit Hitbox Collider (covers figurine and billboard for 100% accurate mouse picking)
-    const hitBoxGeom = new THREE.CylinderGeometry(0.75, 0.75, headHeight + 0.9, 8);
+    // 4. Transparent 3D Unit Hitbox Collider (tightly bounds figurine without protruding into neighbor tiles)
+    const hitBoxGeom = new THREE.CylinderGeometry(0.48, 0.48, headHeight + 0.1, 8);
     const hitBoxMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
     const hitBoxMesh = new THREE.Mesh(hitBoxGeom, hitBoxMat);
-    hitBoxMesh.position.y = (headHeight + 0.9) / 2;
+    hitBoxMesh.position.y = (headHeight + 0.1) / 2;
     hitBoxMesh.userData = { isUnitHitBox: true, unitKey: unit.key };
     group.add(hitBoxMesh);
 
@@ -2404,16 +2404,11 @@ class HexBastionGame {
       }
     });
 
-    // Rebuild active unit interactive targets for Raycaster (handles unit selection & click detection with 100% accuracy)
+    // Rebuild active unit interactive targets for Raycaster (only physical figurine hitboxes, never wide billboard badges)
     this.unitInteractiveList = [];
     this.unit3DMeshes.forEach((meshGroup) => {
-      if (meshGroup.visible) {
-        if (meshGroup.userData?.hitBoxMesh) {
-          this.unitInteractiveList.push(meshGroup.userData.hitBoxMesh);
-        }
-        if (meshGroup.userData?.badgeObj?.sprite) {
-          this.unitInteractiveList.push(meshGroup.userData.badgeObj.sprite);
-        }
+      if (meshGroup.visible && meshGroup.userData?.hitBoxMesh) {
+        this.unitInteractiveList.push(meshGroup.userData.hitBoxMesh);
       }
     });
 
@@ -2605,7 +2600,7 @@ class HexBastionGame {
 
   executeUnitMove(unit, targetKey, isLocalAction = true) {
     if (unit.moveCooldown > 0 || unit.isMoving) {
-      this.showFloatingText("COOLDOWN", this.hexToPixel(unit.q, unit.r), '#94a3b8');
+      this.showFloatingText("COOLDOWN", this.getUnitScreenPos(unit), '#94a3b8');
       return;
     }
 
@@ -3586,7 +3581,7 @@ class HexBastionGame {
       this.actionTextEl.textContent = `【${this.selectedBuffCard.name}】対象マス/ユニットをクリック`;
       this.actionTextEl.style.color = '#fbbf24';
     } else {
-      this.actionTextEl.textContent = '味方駒クリックで移動・回転 / 右ドラッグで視点360°回転 / ホイールでズーム';
+      this.actionTextEl.textContent = '味方駒クリックで選択・移動 / 右クリックで逆回転・解除 / WASDでカメラ移動 / ホイールでズーム';
       this.actionTextEl.style.color = '#94a3b8';
     }
   }
@@ -3995,34 +3990,65 @@ class HexBastionGame {
         this.mouseNDC.y = -(clientY / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouseNDC, this.camera);
 
-        // A. Priority 1: Check unit click targets (figurine body + billboard badge)
-        if (this.unitInteractiveList && this.unitInteractiveList.length > 0) {
-          const unitHits = this.raycaster.intersectObjects(this.unitInteractiveList, false);
-          if (unitHits.length > 0 && unitHits[0].object.userData?.unitKey) {
-            const uKey = unitHits[0].object.userData.unitKey;
-            if (this.units.has(uKey)) {
-              foundKey = uKey;
-            }
-          }
-        }
+        const floorHits = (this.hexPillarInteractiveList && this.hexPillarInteractiveList.length > 0)
+          ? this.raycaster.intersectObjects(this.hexPillarInteractiveList, false)
+          : [];
+        const unitHits = (this.unitInteractiveList && this.unitInteractiveList.length > 0)
+          ? this.raycaster.intersectObjects(this.unitInteractiveList, false)
+          : [];
 
-        // B. Priority 2: Check floor hex pillars
-        if (!foundKey && this.hexPillarInteractiveList.length > 0) {
-          const floorHits = this.raycaster.intersectObjects(this.hexPillarInteractiveList, false);
-          if (floorHits.length > 0 && floorHits[0].object.userData?.key) {
-            foundKey = floorHits[0].object.userData.key;
-          }
-        }
-
-        // C. Priority 3: 3D Ground Plane Intersection (exact 3D math fallback for gaps/edges)
-        if (!foundKey) {
+        // Ground plane math intersection fallback (for edge slits & high-ground elevation compensation)
+        const getPlaneHexKey = () => {
           const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.3);
           const hitPoint = new THREE.Vector3();
           if (this.raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
-            const key = this.worldToHex3D(hitPoint.x, hitPoint.z);
-            if (this.grid.has(key)) {
-              foundKey = key;
+            let key = this.worldToHex3D(hitPoint.x, hitPoint.z);
+            const cell = this.grid.get(key);
+            if (cell && cell.terrain === TERRAIN.HIGH_GROUND) {
+              const hgPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(cell.topY || 0.85));
+              const hgHit = new THREE.Vector3();
+              if (this.raycaster.ray.intersectPlane(hgPlane, hgHit)) {
+                const hgKey = this.worldToHex3D(hgHit.x, hgHit.z);
+                if (this.grid.has(hgKey)) key = hgKey;
+              }
             }
+            if (this.grid.has(key)) return key;
+          }
+          return null;
+        };
+
+        // Priority 1: Move Targeting
+        // If a unit is selected, clicking on a highlighted valid move hex takes absolute precedence over unit hitboxes
+        if (this.selectedBoardUnitKey && this.validMoveHexes && this.validMoveHexes.length > 0) {
+          const moveFloorHit = floorHits.find(h => this.validMoveHexes.includes(h.object.userData?.key));
+          if (moveFloorHit) {
+            foundKey = moveFloorHit.object.userData.key;
+          } else {
+            const planeKey = getPlaneHexKey();
+            if (planeKey && this.validMoveHexes.includes(planeKey)) {
+              foundKey = planeKey;
+            }
+          }
+        }
+
+        // Priority 2: Standard Unified Raycasting (Figurines vs Board Floor by Camera Distance)
+        if (!foundKey) {
+          const firstUnitHit = (unitHits.length > 0 && unitHits[0].object.userData?.unitKey) ? unitHits[0] : null;
+          const firstFloorHit = (floorHits.length > 0 && floorHits[0].object.userData?.key) ? floorHits[0] : null;
+
+          if (firstUnitHit && firstFloorHit) {
+            // Pick whatever is closest to the camera along the ray
+            if (firstUnitHit.distance < firstFloorHit.distance) {
+              foundKey = firstUnitHit.object.userData.unitKey;
+            } else {
+              foundKey = firstFloorHit.object.userData.key;
+            }
+          } else if (firstUnitHit) {
+            foundKey = firstUnitHit.object.userData.unitKey;
+          } else if (firstFloorHit) {
+            foundKey = firstFloorHit.object.userData.key;
+          } else {
+            foundKey = getPlaneHexKey();
           }
         }
       }
