@@ -601,6 +601,7 @@ class HexBastionGame {
     // AI
     this.aiEnergy = 5;
     this.aiLastActionTime = 0;
+    this.aiLastCardTime = 0;
 
     // Mouse & Camera Controls (Straight perspective aligned with core axis)
     this.hoverHexKey = null;
@@ -1556,10 +1557,9 @@ class HexBastionGame {
       if (cell && cell.terrain === TERRAIN.EMPTY) cell.terrain = TERRAIN.HIGH_GROUND;
     });
 
-    // Obstacles
+    // Obstacles (Keep center columns q=0 open for frontline clashes)
     const obstacleCoords = [
-      { q: -1, r: 0 }, { q: 1, r: 0 },
-      { q: 0, r: -2 }, { q: 0, r: 2 }
+      { q: -1, r: 0 }, { q: 1, r: 0 }
     ];
     if (isTactical) {
       obstacleCoords.push({ q: -3, r: -3 }, { q: 3, r: 3 });
@@ -1574,11 +1574,12 @@ class HexBastionGame {
     const botTeam = this.isHost ? 'blue' : 'red';
     const topTeam = this.isHost ? 'red' : 'blue';
 
-    this.spawnUnit(0, rBound - 1, 'ARROW', botTeam, 0, false);
+    // Vanguard Tank at front (r=2), Arrow support directly behind (r=3) - tightly connected formation
     this.spawnUnit(0, 2, 'TANK', botTeam, 0, false);
+    this.spawnUnit(0, 3, 'ARROW', botTeam, 0, false);
 
-    this.spawnUnit(0, -rBound + 1, 'ARROW', topTeam, 3, false);
     this.spawnUnit(0, -2, 'TANK', topTeam, 3, false);
+    this.spawnUnit(0, -3, 'ARROW', topTeam, 3, false);
 
     this.updateUnitCountUI();
     this.build3DGrid();
@@ -1604,6 +1605,20 @@ class HexBastionGame {
       this.selectedDraftUnitIds.push(pick);
     }
 
+    // Formation Priority: Keep entire army cohesive in front/mid ranks (r=2, 3, then 4)
+    // Avoid spawning in the distant backfield (r >= 5) so front-line units are never isolated!
+    const getFormationPriority = (cell, isBot) => {
+      const r = isBot ? cell.r : -cell.r;
+      // Tier 1: Row 2 and Row 3 (front battle line & direct wing support)
+      if (r === 2 || r === 3) return 1;
+      // Tier 2: Row 4 (close reserve guard)
+      if (r === 4) return 2;
+      // Tier 3: Row 1 (forward vanguard edge)
+      if (r === 1) return 3;
+      // Tier 4: Backfield near core (fallback only if front rows full)
+      return 10 + r;
+    };
+
     const ownEligibleHexes = [];
     this.grid.forEach(cell => {
       if (cell.r > 0 && cell.terrain !== TERRAIN.OBSTACLE && cell.terrain !== TERRAIN.CORE_BOTTOM) {
@@ -1612,7 +1627,12 @@ class HexBastionGame {
         }
       }
     });
-    ownEligibleHexes.sort(() => 0.5 - Math.random());
+    ownEligibleHexes.sort((a, b) => {
+      const pA = getFormationPriority(a, true);
+      const pB = getFormationPriority(b, true);
+      if (pA !== pB) return pA - pB;
+      return 0.5 - Math.random();
+    });
 
     for (let i = 0; i < needCount; i++) {
       const uid = this.selectedDraftUnitIds[i];
@@ -1634,7 +1654,12 @@ class HexBastionGame {
         }
       }
     });
-    enemyEligibleHexes.sort(() => 0.5 - Math.random());
+    enemyEligibleHexes.sort((a, b) => {
+      const pA = getFormationPriority(a, false);
+      const pB = getFormationPriority(b, false);
+      if (pA !== pB) return pA - pB;
+      return 0.5 - Math.random();
+    });
 
     for (let i = 0; i < needCount; i++) {
       const uid = enemyDraftIds[i];
@@ -3228,30 +3253,31 @@ class HexBastionGame {
     }
 
     const now = performance.now() / 1000;
-    let baseActionDelay = 1.6;
-    if (this.cpuDifficulty === 'EASY') baseActionDelay = 3.0;
-    else if (this.cpuDifficulty === 'HARD') baseActionDelay = 0.9;
+    let baseActionDelay = 2.4; // NORMAL: was 1.6s
+    if (this.cpuDifficulty === 'EASY') baseActionDelay = 3.6; // was 3.0s
+    else if (this.cpuDifficulty === 'HARD') baseActionDelay = 1.2; // was 0.9s
 
     const actionDelay = baseActionDelay * this.getRecastMultiplier();
     if (now - this.aiLastActionTime < actionDelay) return;
 
-    // AI Card Usage: probability scales with difficulty
-    const cardUseProb = (this.cpuDifficulty === 'HARD') ? 0.35 : (this.cpuDifficulty === 'EASY' ? 0.10 : 0.20);
+    // AI Card Usage: tuned probability + minimum 10s cooldown so cards aren't spammed
+    const cardUseProb = (this.cpuDifficulty === 'HARD') ? 0.22 : (this.cpuDifficulty === 'EASY' ? 0.05 : 0.10);
     const unspentAiCards = this.enemyCards.filter(c => !c.used);
-    if (unspentAiCards.length > 0 && Math.random() < cardUseProb) {
+    if (unspentAiCards.length > 0 && (now - this.aiLastCardTime >= 10.0) && Math.random() < cardUseProb) {
       const cardToUse = unspentAiCards[0];
       cardToUse.used = true;
       this.notifyCardUsedByEnemy(cardToUse);
       this.applyEnemyCardEffect(cardToUse, null);
       this.updateEnemyCardsUI();
       this.aiLastActionTime = now;
+      this.aiLastCardTime = now;
       return;
     }
 
     const aiUnits = Array.from(this.units.values()).filter(u => u.owner === this.enemyTeam && !u.isMoving && u.moveCooldown <= 0);
 
-    // AI Move: exactly 1 unit per action interval (no simultaneous moves)
-    const moveProb = (this.cpuDifficulty === 'HARD') ? 0.85 : (this.cpuDifficulty === 'EASY' ? 0.50 : 0.65);
+    // AI Move: relaxed move probabilities so CPU doesn't feel like a relentless machine
+    const moveProb = (this.cpuDifficulty === 'HARD') ? 0.75 : (this.cpuDifficulty === 'EASY' ? 0.35 : 0.50);
     if (aiUnits.length > 0 && Math.random() < moveProb) {
       const unitToMove = aiUnits[Math.floor(Math.random() * aiUnits.length)];
       const validMoves = this.getValidMovesForUnit(unitToMove);
@@ -3259,15 +3285,18 @@ class HexBastionGame {
       if (validMoves.length > 0) {
         let chosenKey = validMoves[0];
 
-        if (this.cpuDifficulty === 'EASY' && Math.random() < 0.4) {
-          // EASY: occasional relaxed/random moves
+        const isRelaxedMove = (this.cpuDifficulty === 'EASY' && Math.random() < 0.50) ||
+                              (this.cpuDifficulty === 'NORMAL' && Math.random() < 0.25);
+
+        if (isRelaxedMove) {
+          // Relaxed/random lateral move: gives the player opportunities to exploit!
           chosenKey = validMoves[Math.floor(Math.random() * validMoves.length)];
         } else {
-          // NORMAL / HARD: tactical scoring
+          // Tactical scoring
           const scoredMoves = validMoves.map(k => {
             const c = this.grid.get(k);
             let score = (c.r - unitToMove.r) * 4;
-            if (c.terrain === TERRAIN.HIGH_GROUND) score += (this.cpuDifficulty === 'HARD' ? 10 : 6);
+            if (c.terrain === TERRAIN.HIGH_GROUND) score += (this.cpuDifficulty === 'HARD' ? 10 : 5);
             // On HARD, bonus for moving closer to player core
             if (this.cpuDifficulty === 'HARD') {
               score += (c.r) * 2;
@@ -3618,6 +3647,9 @@ class HexBastionGame {
         this.isBattleActive = true;
         this.isCountingDown = false;
         this.lastTime = performance.now();
+        const startSec = performance.now() / 1000;
+        this.aiLastActionTime = startSec + 2.0; // Grace period for player opening move
+        this.aiLastCardTime = startSec + 6.0;   // Grace period before CPU uses cards
       }
     }, 850);
   }
