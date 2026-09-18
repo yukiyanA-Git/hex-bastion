@@ -466,6 +466,8 @@ class HexBastionGame {
     this.cpuScale5 = document.getElementById('cpu-scale-5');
     this.cpuScale8 = document.getElementById('cpu-scale-8');
     this.cpuStartBtn = document.getElementById('cpu-start-btn');
+    this.perfToggleBtn = document.getElementById('perf-toggle-btn');
+    this.startPerfBtn = document.getElementById('start-perf-btn');
     this.pvpTabHost = document.getElementById('pvp-tab-host');
     this.pvpTabGuest = document.getElementById('pvp-tab-guest');
     this.pvpTabRandom = document.getElementById('pvp-tab-random');
@@ -620,6 +622,9 @@ class HexBastionGame {
     // Draft Time Limit (0: none/unlimited, 20, 40, 60 seconds. Default 0 = unlimited)
     this.draftTimeLimit = 0;
 
+    // Performance Mode (Low-spec optimizations for smooth 60 FPS)
+    this.perfMode = (localStorage.getItem('hex_bastion_perf_mode') === 'true');
+
     // Recast inspector element
     this.inspectStatRecast = document.getElementById('inspect-stat-recast');
 
@@ -650,6 +655,7 @@ class HexBastionGame {
     this.setupCardArchiveDOM();
     this.generateSymmetricalMap();
     this.updateMuteUI();
+    this.applyPerfMode();
     this.updateUnitInspector();
     this.startModal.classList.remove('hidden');
     this.briefingModal.classList.add('hidden');
@@ -692,7 +698,7 @@ class HexBastionGame {
 
   initCanvas() {
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = this.perfMode ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.25);
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
     this.ctx.scale(dpr, dpr);
@@ -706,6 +712,7 @@ class HexBastionGame {
 
     if (this.renderer3D) {
       this.renderer3D.setSize(rect.width, rect.height);
+      this.renderer3D.setPixelRatio(dpr);
       if (this.camera) {
         this.camera.aspect = rect.width / rect.height;
         this.camera.updateProjectionMatrix();
@@ -732,10 +739,11 @@ class HexBastionGame {
         alpha: true,
         powerPreference: "high-performance"
       });
-      this.renderer3D.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      const dpr = this.perfMode ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.25);
+      this.renderer3D.setPixelRatio(dpr);
       this.renderer3D.toneMapping = THREE.ACESFilmicToneMapping;
       this.renderer3D.toneMappingExposure = 1.35;
-      this.renderer3D.shadowMap.enabled = true;
+      this.renderer3D.shadowMap.enabled = !this.perfMode;
       this.renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
 
       this.scene = new THREE.Scene();
@@ -841,6 +849,37 @@ class HexBastionGame {
     if (startMuteBtn) {
       startMuteBtn.textContent = text;
       startMuteBtn.classList.toggle('muted', isMuted);
+    }
+  }
+
+  togglePerfMode() {
+    sounds.init();
+    this.perfMode = !this.perfMode;
+    localStorage.setItem('hex_bastion_perf_mode', this.perfMode ? 'true' : 'false');
+    this.applyPerfMode();
+    if (sounds.enabled) sounds.playBuff();
+  }
+
+  applyPerfMode() {
+    const isPerf = this.perfMode;
+    if (this.perfToggleBtn) {
+      this.perfToggleBtn.textContent = isPerf ? '⚡ 軽量: ON' : '⚡ 軽量: OFF';
+      this.perfToggleBtn.style.color = isPerf ? '#34d399' : '#94a3b8';
+      this.perfToggleBtn.style.borderColor = isPerf ? '#34d399' : 'rgba(56, 189, 248, 0.4)';
+    }
+    if (this.startPerfBtn) {
+      this.startPerfBtn.textContent = isPerf ? '⚡ 軽量化: ON' : '⚡ 軽量化: OFF';
+      this.startPerfBtn.style.color = isPerf ? '#34d399' : '#94a3b8';
+      this.startPerfBtn.style.borderColor = isPerf ? '#34d399' : 'rgba(56, 189, 248, 0.4)';
+    }
+
+    if (this.renderer3D) {
+      this.renderer3D.shadowMap.enabled = !isPerf;
+      const dpr = isPerf ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.25);
+      this.renderer3D.setPixelRatio(dpr);
+    }
+    if (this.canvas) {
+      this.initCanvas();
     }
   }
 
@@ -1848,7 +1887,7 @@ class HexBastionGame {
       const baseCenterY = topY - (height / 2);
       mesh.position.set(x, baseCenterY, z);
       mesh.receiveShadow = true;
-      mesh.castShadow = true;
+      mesh.castShadow = false;
 
       // Glowing cyber edges
       const edgeGeom = new THREE.EdgesGeometry(geom);
@@ -3659,6 +3698,20 @@ class HexBastionGame {
     const dt = (currentTime - this.lastTime) / 1000 || 0;
     this.lastTime = currentTime;
 
+    // Throttle 3D background rendering when full-screen modal overlays are active to eliminate UI stutter on low-spec laptops
+    const isModalActive = (this.startModal && !this.startModal.classList.contains('hidden')) ||
+      (this.briefingModal && !this.briefingModal.classList.contains('hidden')) ||
+      (this.helpModal && !this.helpModal.classList.contains('hidden')) ||
+      (this.cardArchiveModal && !this.cardArchiveModal.classList.contains('hidden'));
+
+    if (isModalActive) {
+      this.modalFrameCount = (this.modalFrameCount || 0) + 1;
+      if (this.modalFrameCount % 4 !== 0) {
+        requestAnimationFrame((t) => this.render(t));
+        return;
+      }
+    }
+
     // WASD Camera Pan Movement (+ Shift for 1.5x Sprint Speed)
     if (this.keysDown.w || this.keysDown.s || this.keysDown.a || this.keysDown.d) {
       const speedMult = this.keysDown.shift ? 1.5 : 1.0;
@@ -4233,6 +4286,24 @@ class HexBastionGame {
       if (this.draftTimerInterval) clearInterval(this.draftTimerInterval);
     });
 
+    // Performance Mode Toggles
+    if (this.perfToggleBtn) {
+      this.perfToggleBtn.addEventListener('click', () => this.togglePerfMode());
+    }
+    if (this.startPerfBtn) {
+      this.startPerfBtn.addEventListener('click', () => this.togglePerfMode());
+    }
+
+    // Briefing Back Controls (Return from briefing draft to start selection)
+    const briefingBackBtn = document.getElementById('briefing-back-btn');
+    if (briefingBackBtn) {
+      briefingBackBtn.addEventListener('click', () => this.handleBriefingBack());
+    }
+    const briefingBackFooterBtn = document.getElementById('briefing-back-footer-btn');
+    if (briefingBackFooterBtn) {
+      briefingBackFooterBtn.addEventListener('click', () => this.handleBriefingBack());
+    }
+
     // Briefing Controls
     document.getElementById('start-battle-btn').addEventListener('click', () => {
       sounds.init();
@@ -4261,6 +4332,27 @@ class HexBastionGame {
       if (this.peer) { try { this.peer.destroy(); } catch(e){} }
       if (this.conn) { try { this.conn.close(); } catch(e){} }
     });
+  }
+
+  handleBriefingBack() {
+    if (this.draftTimerInterval) {
+      clearInterval(this.draftTimerInterval);
+      this.draftTimerInterval = null;
+    }
+    this.briefingModal.classList.add('hidden');
+    this.startModal.classList.remove('hidden');
+    this.isBattleActive = false;
+    this.isCountingDown = false;
+    this.myDraftReady = false;
+    this.enemyDraftReady = false;
+    if (this.startBattleBtn) {
+      this.startBattleBtn.disabled = false;
+      this.startBattleBtn.textContent = '作戦決定・出撃準備完了 (ENGAGE)';
+    }
+    if (this.briefingReadyStatus) {
+      this.briefingReadyStatus.classList.add('hidden');
+    }
+    sounds.playStep();
   }
 
   showTooltip(e, title, stats, desc) {

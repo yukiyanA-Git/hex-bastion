@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "chronos-app-d149d"
+  },
+  "targets": {
+    "chronos-app-d149d": {
+      "hosting": {
+        "hex-bastion-app": [
+          "hex-bastion-app"
+        ]
+      }
+    }
+  }
+}

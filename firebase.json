@@ -1,0 +1,10 @@
+{
+  "hosting": {
+    "target": "hex-bastion-app",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ]
+  }
+}
