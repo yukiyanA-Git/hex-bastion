@@ -4,7 +4,19 @@
     "public": ".",
     "ignore": [
       "firebase.json",
-      "**/.*"
+      "**/.*",
+      "**/.*/**",
+      "**/*.md",
+      "**/*.py",
+      "**/*.sh",
+      "**/*.ps1",
+      "**/*.bat",
+      "**/scratch/**",
+      "**/tests/**",
+      "**/node_modules/**",
+      "package*.json",
+      "**/*.backup",
+      "**/*.tmp"
     ]
   }
 }
