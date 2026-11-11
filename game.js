@@ -1,15 +1,12 @@
 /**
  * HEX BASTION - Cinematic 3D Cyber-Chess Edition
- * 
- * Features:
- * 1. Dramatic Board Elevation (High Ground CLIFF stands at +1.9 height with stepped neon fortress pillars)
- * 2. Distinctive 3D Cyber Chess Figurines + Camera-facing 3D Billboard Head Badges + Attack Direction Projectors
- * 3. 360° Free Camera Orbit Controls (Right-click drag to rotate, wheel to zoom, reset button)
- * 4. All 10 Tactical Cards with unique icons + Dedicated Card Archive Modal
- * 5. Integrated How-To-Play Manual on Start Screen & HUD
+ * Compiled from modular ES source code in src/
  */
 
-// ================= Audio Synthesizer =================
+/**
+ * HEX BASTION - Audio Synthesizer Module
+ * Web Audio API based procedural sound effects (no external audio files required)
+ */
 class SoundController {
   constructor() {
     this.ctx = null;
@@ -42,7 +39,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.15);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playStep() {
@@ -60,7 +57,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.08);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playLaser() {
@@ -78,7 +75,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.1);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playReversal() {
@@ -97,7 +94,7 @@ class SoundController {
         osc.start(now + i * 0.05);
         osc.stop(now + i * 0.05 + 0.25);
       });
-    } catch(e){}
+    } catch (e) {}
   }
 
   playHit() {
@@ -115,7 +112,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.2);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playBuff() {
@@ -133,7 +130,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.25);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playAlert() {
@@ -151,7 +148,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.3);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playCountdown() {
@@ -168,7 +165,7 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.15);
-    } catch(e){}
+    } catch (e) {}
   }
 
   playStartHorn() {
@@ -186,21 +183,18 @@ class SoundController {
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.4);
-    } catch(e){}
+    } catch (e) {}
   }
 }
 
 const sounds = new SoundController();
 
+
 // ================= Hex Geometry (Vertical) =================
-const HEX_DIRECTIONS = [
-  { q: 0,  r: -1, s: 1,  angle: -Math.PI / 2 },       // 0: North
-  { q: 1,  r: -1, s: 0,  angle: -Math.PI / 6 },       // 1: North-East
-  { q: 1,  r: 0,  s: -1, angle: Math.PI / 6 },        // 2: South-East
-  { q: 0,  r: 1,  s: -1, angle: Math.PI / 2 },        // 3: South
-  { q: -1, r: 1,  s: 0,  angle: 5 * Math.PI / 6 },    // 4: South-West
-  { q: -1, r: 0,  s: 1,  angle: -5 * Math.PI / 6 }    // 5: North-West
-];
+/**
+ * HEX BASTION - Hex Coordinate & Math Utilities
+ */
+
 
 function cubeAdd(a, b) {
   return { q: a.q + b.q, r: a.r + b.r, s: a.s + b.s };
@@ -222,7 +216,77 @@ function getDirIndexBetween(from, to) {
   return null;
 }
 
+function hexRound(q, r, s) {
+  let rq = Math.round(q);
+  let rr = Math.round(r);
+  let rs = Math.round(s);
+  const qDiff = Math.abs(rq - q);
+  const rDiff = Math.abs(rr - r);
+  const sDiff = Math.abs(rs - s);
+  if (qDiff > rDiff && qDiff > sDiff) rq = -rr - rs;
+  else if (rDiff > sDiff) rr = -rq - rs;
+  else rs = -rq - rr;
+  return { q: rq, r: rr, s: rs };
+}
+
+function hexToWorld3D(q, r, size, isFlipped = false) {
+  const tq = isFlipped ? -q : q;
+  const tr = isFlipped ? -r : r;
+  const x = size * (Math.sqrt(3) * tq + Math.sqrt(3) / 2 * tr);
+  const z = size * (1.5 * tr);
+  return { x, z };
+}
+
+function worldToHex3D(x, z, size, isFlipped = false) {
+  const tr = z / (1.5 * size);
+  const tq = (x / (Math.sqrt(3) * size)) - (tr / 2);
+  const rounded = hexRound(tq, tr, -tq - tr);
+  let q = rounded.q;
+  let r = rounded.r;
+  if (isFlipped) {
+    q = -q;
+    r = -r;
+  }
+  return `${q},${r}`;
+}
+
+function hexToPixel(q, r, size, centerX, centerY, isFlipped = false) {
+  const tq = isFlipped ? -q : q;
+  const tr = isFlipped ? -r : r;
+  const x = centerX + size * (Math.sqrt(3) * tq + Math.sqrt(3) / 2 * tr);
+  const y = centerY + size * (3 / 2 * tr);
+  return { x, y };
+}
+
+function pixelToHex(px, py, size, centerX, centerY, isFlipped = false) {
+  const x = px - centerX;
+  const y = py - centerY;
+  let q = (Math.sqrt(3) / 3 * x - 1 / 3 * y) / size;
+  let r = (2 / 3 * y) / size;
+  const rounded = hexRound(q, r, -q - r);
+  if (isFlipped) {
+    rounded.q = -rounded.q;
+    rounded.r = -rounded.r;
+    rounded.s = -rounded.s;
+  }
+  return rounded;
+}
+
+
 // ================= Units & Cards Database =================
+/**
+ * HEX BASTION - Game Constants & Database
+ */
+
+const HEX_DIRECTIONS = [
+  { q: 0,  r: -1, s: 1,  angle: -Math.PI / 2 },       // 0: North
+  { q: 1,  r: -1, s: 0,  angle: -Math.PI / 6 },       // 1: North-East
+  { q: 1,  r: 0,  s: -1, angle: Math.PI / 6 },        // 2: South-East
+  { q: 0,  r: 1,  s: -1, angle: Math.PI / 2 },        // 3: South
+  { q: -1, r: 1,  s: 0,  angle: 5 * Math.PI / 6 },    // 4: South-West
+  { q: -1, r: 0,  s: 1,  angle: -5 * Math.PI / 6 }    // 5: North-West
+];
+
 const TERRAIN = {
   EMPTY: 'EMPTY',
   HIGH_GROUND: 'HIGH_GROUND',
@@ -434,6 +498,7 @@ const BUFF_CARDS_DB = [
     desc: '指定した味方ユニット1体の最大HPと現在HPを永続的に【1.3倍】に強化する。巨象の強靭な生命力で前線の要塞と化す。'
   }
 ];
+
 
 // ================= Main Game Engine =================
 class HexBastionGame {
@@ -972,6 +1037,8 @@ class HexBastionGame {
       this.inspectStatRecast.style.color = '#94a3b8';
     }
   }
+
+
 
   // ================= Match Setup Modal & P2P Setup =================
   initSetupModal() {
@@ -1557,6 +1624,8 @@ class HexBastionGame {
     }
   }
 
+
+
   // ================= Map Generation =================
   generateSymmetricalMap() {
     this.grid.clear();
@@ -1809,6 +1878,8 @@ class HexBastionGame {
     }
     return true;
   }
+
+
 
   // ================= 3D HEX PILLARS GENERATION (TRUE ELEVATION) =================
   build3DGrid() {
@@ -2591,6 +2662,8 @@ class HexBastionGame {
     }
   }
 
+
+
   // ================= Movement & Rotation =================
   rotateUnit(unit, delta) {
     if (!unit) return;
@@ -3283,6 +3356,8 @@ class HexBastionGame {
     }
   }
 
+
+
   // ================= AI =================
   updateAI(dt) {
     if (this.isGameOver || this.isPvP) return;
@@ -3355,6 +3430,8 @@ class HexBastionGame {
 
     // Policy B: No mid-battle deployment. Players fight purely with fielded units.
   }
+
+
 
   // ================= UI Setup =================
   setupDeckDOM() {
@@ -3693,6 +3770,8 @@ class HexBastionGame {
     }, 850);
   }
 
+
+
   // ================= Rendering Loop =================
   render(currentTime) {
     const dt = (currentTime - this.lastTime) / 1000 || 0;
@@ -4030,6 +4109,8 @@ class HexBastionGame {
     this.combatBannerEl.offsetHeight;
     this.combatBannerEl.style.animation = null;
   }
+
+
 
   // ================= Event Listeners =================
   initEventListeners() {
@@ -4450,3 +4531,5 @@ class HexBastionGame {
 window.addEventListener('DOMContentLoaded', () => {
   new HexBastionGame();
 });
+
+

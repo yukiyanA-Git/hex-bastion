@@ -78,14 +78,51 @@
 ```
 hex-bastion/
 ├── README.md           # プロジェクト解説ドキュメント
+├── package.json        # プロジェクト構成 ＆ ビルドスクリプト定義
 ├── index.html          # ゲームメイン画面・UIモーダル・メタタグ
 ├── style.css           # サイバースタイル・レスポンシブCSS
-├── game.js             # ゲームエンジン統合スクリプト（3D/ロジック/P2P/UI）
-├── icon.jpg            # ファビコン・アプリアイコン・ロゴ画像
-├── bg_3d_concept.jpg   # アリーナ背景テクスチャ
+├── game.js             # 配信用統合スクリプト（src/ より自動コンパイル）
+├── icon.jpg            # ファビコン・アプリアイコン・ロゴ画像（軽量化済）
+├── bg_3d_concept.jpg   # アリーナ背景テクスチャ（軽量化済）
 ├── ads.txt             # Google AdSense 認定配信者情報
-├── firebase.json       # Firebase Hosting デプロイ設定
-└── .firebaserc         # Firebase プロジェクト設定
+├── firebase.json       # Firebase Hosting デプロイ設定（作業ファイル保護済）
+├── .firebaserc         # Firebase プロジェクト設定
+├── scripts/
+│   └── build.js        # src/ モジュール群から game.js を生成するビルダー
+└── src/                # ES Modules ソースコード
+    ├── core/
+    │   ├── constants.js       # 駒データ、カードDB、地形定数
+    │   ├── hexMath.js         # ヘックス軸座標計算、座標変換ユーティリティ
+    │   └── audio.js           # Web Audio API シンセサイザー音響
+    ├── engine/
+    │   ├── renderer3d.js      # Three.js 3D盤面・立体駒・ライティング
+    │   └── effects2d.js       # Canvas 2D パーティクル・ダメージ数値・HUD
+    ├── game/
+    │   ├── combat.js          # オセロ反転判定、移動、ビーム射撃、撃破判定
+    │   └── ai.js              # CPU（EASY/NORMAL/HARD）思考ロジック
+    ├── network/
+    │   └── p2p.js             # PeerJS WebRTC 通信・マッチメイキング
+    ├── ui/
+    │   └── uiController.js    # UIイベント、モーダル、図鑑、ドラフトセレクター
+    └── main.js                # ES Modules エントリーポイント
+```
+
+---
+
+## 🛠️ 開発・ビルド手順
+
+### ビルド実行（src/ から game.js を生成）
+```bash
+# npm経由でビルド
+npm run build
+
+# またはNode.jsで直接実行
+node scripts/build.js
+```
+
+### 構文・整合性チェック
+```bash
+npm test
 ```
 
 ---

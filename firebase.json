@@ -13,6 +13,8 @@
       "**/*.bat",
       "**/scratch/**",
       "**/tests/**",
+      "**/scripts/**",
+      "**/src/**",
       "**/node_modules/**",
       "package*.json",
       "**/*.backup",
